@@ -1,11 +1,4 @@
-// 包 logrotatex 提供了一个滚动日志记录器。
-//
-// 请注意，这是 logrotatex 的 v2.0 版本，应使用 gopkg.in 进行导入，如下所示：
-//
-//	import "gopkg.in/natefinch/logrotatex.v2"
-//
-// 包名仍为 logrotatex，代码位于 https://github.com/natefinch/logrotatex 的 v2.0 分支下。
-//
+
 // logrotatex 旨在成为日志记录基础设施的一部分。
 // 它并非一个一体化的解决方案，而是日志记录栈底层的一个可插拔组件，仅用于控制日志写入的文件。
 //
