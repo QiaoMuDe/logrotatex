@@ -26,7 +26,7 @@ import "gitee.com/MM-Q/logrotatex"
 
 func main() {
     // 初始化日志记录器
-    logger := &logrotatex.Logger{
+    logger := &logrotatex.LogRotateX{
         Filename:   "/var/log/myapp.log",
         MaxSize:    100, // MB
         MaxBackups: 5,

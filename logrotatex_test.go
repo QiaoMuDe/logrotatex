@@ -1105,3 +1105,64 @@ func exists(path string, t testing.TB) {
 	// 验证是否成功获取文件信息，即文件是否存在
 	assertUp(err == nil, t, 1, "expected file to exist, but got error from os.Stat: %v", err)
 }
+
+// TestLogRunInfo 测试日志轮转的运行信息
+func TestLogRunInfo(t *testing.T) {
+	// 设置为1方便测试
+	megabyte = 1
+
+	// 初始化日志记录器
+	logger := &LogRotateX{
+		Filename:   "logs/test.log",
+		MaxSize:    1024, // bytes
+		MaxBackups: 10,
+		MaxAge:     30, // days
+		Compress:   false,
+	}
+	// 程序退出前关闭日志
+	defer logger.Close()
+
+	// 检查logs目录是否存在，不存在则创建
+	if _, err := os.Stat("logs"); os.IsNotExist(err) {
+		err := os.Mkdir("logs", 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 定义每次写入的日志消息
+	logMsg := []byte("This is a log message")
+	// 定义目标写入数据量为 4KB
+	const targetSize = 1024 * 4
+	totalWritten := 0
+
+	// 循环写入日志，直到达到 4KB
+	for totalWritten < targetSize {
+		n, err := logger.Write(logMsg)
+		if err != nil {
+			panic(err)
+		}
+		totalWritten += n
+	}
+
+	// 等待1秒，确保日志轮转完成
+	time.Sleep(time.Second)
+
+	// 检查logs目录下是否存在大于1个文件
+	files, err := os.ReadDir("logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) < 2 {
+		t.Fatal("日志目录中预期至少有 2 个文件")
+	}
+}
+
+// TestCleanupLogs 测试完成后清理日志目录
+func TestCleanupLogs(t *testing.T) {
+	if _, err := os.Stat("logs"); err == nil {
+		if err := os.RemoveAll("logs"); err != nil {
+			t.Fatalf("删除logs目录失败: %v", err)
+		}
+	}
+}
