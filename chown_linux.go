@@ -4,6 +4,7 @@
 package logrotatex
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -12,23 +13,29 @@ import (
 var osChown = os.Chown
 
 // chown 函数用于更改指定文件的所有者和所属组。
-// 它会先尝试以创建、只写和截断模式打开文件，如果文件不存在则创建它。
-// 然后获取文件信息中的系统状态，从中提取用户 ID 和组 ID。
-// 最后使用 osChown 函数更改文件的所有者和所属组。
-// 参数 name 是要更改所有者和所属组的文件路径。
-// 参数 info 是包含文件信息的 os.FileInfo 类型变量。
-// 返回值为 error 类型，如果操作过程中出现错误则返回相应的错误信息，否则返回 nil。
+// 它会从源文件信息中提取用户 ID 和组 ID，然后应用到目标文件。
+//
+// 参数：
+// - name: 目标文件名
+// - info: 源文件信息，用于获取所有者和所属组信息
+//
+// 返回值：
+// - error: 如果发生错误，则返回错误信息；否则返回 nil。
 func chown(name string, info os.FileInfo) error {
-	// 以创建、只写和截断模式打开文件，如果文件不存在则创建它
-	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
-	if err != nil {
-		// 打开文件失败，返回错误信息
-		return err
+	// 安全地获取系统状态信息
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("logrotatex: 无法获取文件系统状态信息")
 	}
-	// 关闭文件
-	f.Close()
-	// 获取文件信息中的系统状态
-	stat := info.Sys().(*syscall.Stat_t)
-	// 更改文件的所有者和所属组
-	return osChown(name, int(stat.Uid), int(stat.Gid))
+
+	// 获取源文件的用户 ID 和组 ID
+	uid := int(stat.Uid)
+	gid := int(stat.Gid)
+
+	// 直接更改目标文件的所有者和所属组
+	if err := os.Chown(name, uid, gid); err != nil {
+		return fmt.Errorf("logrotatex: 无法设置文件所有者: %w", err)
+	}
+
+	return nil
 }
