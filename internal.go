@@ -1,3 +1,7 @@
+// internal.go 包含了logrotatex包的内部实现细节和辅助函数。
+// 该文件提供了日志轮转过程中需要的内部工具函数、常量定义
+// 和私有方法，支持核心功能的实现但不对外暴露接口。
+
 package logrotatex
 
 import (

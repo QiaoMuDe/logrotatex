@@ -1,3 +1,7 @@
+// constructor_test.go 包含了logrotatex包构造函数的测试用例。
+// 该文件测试了Logger实例的创建过程，包括各种配置参数的验证、
+// 默认值设置、错误处理等，确保构造函数能够正确初始化Logger对象。
+
 package logrotatex
 
 import (

@@ -1,3 +1,7 @@
+// logrotatex_test.go 包含了logrotatex包的主要测试用例。
+// 该文件测试了Logger的核心功能，包括日志写入、文件轮转、压缩处理、
+// 时间控制、配置验证等各种场景，确保日志轮转系统的稳定性和可靠性。
+
 package logrotatex
 
 import (

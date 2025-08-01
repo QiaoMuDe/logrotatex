@@ -1,3 +1,7 @@
+// path_validation_test.go 包含了logrotatex包路径验证功能的测试用例。
+// 该文件测试了文件路径的有效性检查、路径格式验证、特殊字符处理等功能，
+// 确保日志轮转系统能够正确处理各种路径输入情况。
+
 package logrotatex
 
 import (

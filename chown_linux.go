@@ -1,3 +1,6 @@
+// chown_linux.go 实现了Linux和Darwin系统下的文件所有者变更功能。
+// 该文件通过系统调用获取源文件的用户ID和组ID，并将其应用到目标文件上，
+// 确保轮转后的日志文件保持与原文件相同的所有者权限。
 //go:build linux || darwin
 // +build linux darwin
 

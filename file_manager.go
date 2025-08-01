@@ -1,3 +1,7 @@
+// file_manager.go 实现了logrotatex包的文件管理功能。
+// 该文件提供了日志文件的创建、打开、关闭、重命名等基础操作，
+// 以及文件状态检查和元数据管理功能，是日志轮转系统的核心组件。
+
 package logrotatex
 
 import (

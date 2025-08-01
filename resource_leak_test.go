@@ -1,3 +1,7 @@
+// resource_leak_test.go 包含了logrotatex包资源泄漏检测的测试用例。
+// 该文件测试了日志轮转过程中的资源管理，包括文件句柄泄漏、内存泄漏、
+// goroutine泄漏等问题的检测，确保系统长期运行的稳定性。
+
 package logrotatex
 
 import (

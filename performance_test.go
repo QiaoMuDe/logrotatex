@@ -1,3 +1,7 @@
+// performance_test.go 包含了logrotatex包性能测试的相关用例。
+// 该文件测试了日志轮转系统在高并发、大数据量等场景下的性能表现，
+// 包括写入速度、内存使用、CPU占用等指标的基准测试。
+
 package logrotatex
 
 import (

@@ -1,3 +1,7 @@
+// internal_test.go 包含了logrotatex包内部函数的测试用例。
+// 该文件测试了internal.go中定义的私有函数和内部逻辑，
+// 确保内部实现的正确性和稳定性，为整个包的可靠性提供保障。
+
 package logrotatex
 
 import (

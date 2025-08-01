@@ -1,6 +1,10 @@
 //go:build linux
 // +build linux
 
+// rotate_test.go 包含了logrotatex包日志轮转功能的专项测试用例。
+// 该文件专门测试日志文件的轮转机制，包括基于大小的轮转、基于时间的轮转、
+// 轮转策略验证等核心轮转逻辑，确保轮转功能的正确性。
+
 package logrotatex
 
 import (

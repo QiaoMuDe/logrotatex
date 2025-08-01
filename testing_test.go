@@ -1,3 +1,7 @@
+// testing_test.go 包含了logrotatex包测试辅助功能和测试工具函数。
+// 该文件提供了测试过程中需要的辅助函数、模拟工具、断言方法等，
+// 为其他测试文件提供通用的测试支持功能。
+
 package logrotatex
 
 import (

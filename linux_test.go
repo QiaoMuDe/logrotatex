@@ -1,6 +1,10 @@
 //go:build linux
 // +build linux
 
+// linux_test.go 包含了logrotatex包在Linux系统下的特定测试用例。
+// 该文件测试了Linux平台特有的功能，如文件权限处理、系统调用相关操作等，
+// 确保在Linux环境下的日志轮转功能正常工作。
+
 package logrotatex
 
 import (

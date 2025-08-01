@@ -1,3 +1,7 @@
+// example_test.go 包含了logrotatex包的示例代码和用法演示。
+// 该文件提供了如何使用logrotatex进行日志轮转的具体示例，
+// 包括基本配置、高级选项设置等，帮助用户快速上手使用该库。
+
 package logrotatex
 
 import (

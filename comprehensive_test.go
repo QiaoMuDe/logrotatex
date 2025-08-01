@@ -1,3 +1,7 @@
+// comprehensive_test.go 包含了logrotatex包的综合测试用例。
+// 该文件测试了日志轮转功能的各种场景，包括文件大小限制、时间触发、
+// 压缩功能、清理策略等核心功能的集成测试，确保整个系统的稳定性和可靠性。
+
 package logrotatex
 
 import (
