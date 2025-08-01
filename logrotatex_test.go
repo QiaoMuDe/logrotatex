@@ -1,8 +1,8 @@
 package logrotatex
 
 import (
+	"archive/zip"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -338,16 +338,31 @@ func TestCompressOnRotate(t *testing.T) {
 	<-time.After(300 * time.Millisecond)
 
 	// 日志文件的压缩版本现在应该存在，原始文件应该已被移除
-	bc := new(bytes.Buffer)
-	gz := gzip.NewWriter(bc)
-	_, err = gz.Write(b)
-	// 验证写入压缩文件操作是否成功
+	compressedFile := backupFile(dir) + compressSuffix
+	// 验证压缩文件是否存在
+	exists(compressedFile, t)
+
+	// 读取并验证ZIP文件内容
+	zipData, err := os.ReadFile(compressedFile)
 	isNil(err, t)
-	err = gz.Close()
-	// 验证关闭压缩文件操作是否成功
+
+	zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
 	isNil(err, t)
-	// 验证压缩文件的内容是否与初始数据一致
-	existsWithContent(backupFile(dir)+compressSuffix, bc.Bytes(), t)
+
+	// 验证ZIP文件中只有一个文件
+	equals(1, len(zipReader.File), t)
+
+	// 读取ZIP文件中的内容
+	file := zipReader.File[0]
+	rc, err := file.Open()
+	isNil(err, t)
+	defer rc.Close()
+
+	// 验证解压后的内容与原始数据一致
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(rc)
+	isNil(err, t)
+	equals(string(b), buf.String(), t)
 	// 验证原始备份文件是否已被移除
 	notExist(backupFile(dir), t)
 
@@ -410,20 +425,31 @@ func TestCompressOnResume(t *testing.T) {
 	<-time.After(300 * time.Millisecond)
 
 	// 写入操作应该已经启动了压缩 - 现在应该存在一个压缩版本的日志文件，并且原始文件应该已被删除。
-	// 创建一个字节缓冲区用于存储压缩后的数据
-	bc := new(bytes.Buffer)
-	// 创建一个 gzip 写入器，将数据写入字节缓冲区
-	gz := gzip.NewWriter(bc)
-	// 尝试将备份文件的数据写入 gzip 写入器
-	_, err = gz.Write(b)
-	// 验证写入操作是否成功
+	compressedFile := filename2 + compressSuffix
+	// 验证压缩文件是否存在
+	exists(compressedFile, t)
+
+	// 读取并验证ZIP文件内容
+	zipData, err := os.ReadFile(compressedFile)
 	isNil(err, t)
-	// 关闭 gzip 写入器，完成压缩操作
-	err = gz.Close()
-	// 验证关闭操作是否成功
+
+	zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
 	isNil(err, t)
-	// 验证压缩文件是否存在，并且其内容与压缩后的数据一致
-	existsWithContent(filename2+compressSuffix, bc.Bytes(), t)
+
+	// 验证ZIP文件中只有一个文件
+	equals(1, len(zipReader.File), t)
+
+	// 读取ZIP文件中的内容
+	file := zipReader.File[0]
+	rc, err := file.Open()
+	isNil(err, t)
+	defer rc.Close()
+
+	// 验证解压后的内容与原始数据一致
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(rc)
+	isNil(err, t)
+	equals(string(b), buf.String(), t)
 	// 验证原始备份文件是否已被删除
 	notExist(filename2, t)
 
