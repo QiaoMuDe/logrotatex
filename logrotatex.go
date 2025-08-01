@@ -55,7 +55,7 @@ var (
 //
 // 如果 MaxBackups 和 MaxAge 都为 0，则不会删除任何旧日志文件。
 type LogRotateX struct {
-	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。如果该值为空, 则使用 os.TempDir() 下的 <进程名>-logrotatex.log。
+	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
 	Filename string `json:"filename" yaml:"filename"`
 
 	// MaxSize 最大单个日志文件的大小（以 MB 为单位）。默认值为 10 MB。

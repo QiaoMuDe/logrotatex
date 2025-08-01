@@ -480,8 +480,8 @@ func TestDefaultFilename(t *testing.T) {
 	currentTime = fakeTime
 	// 获取系统临时目录
 	dir := os.TempDir()
-	// 构建默认的日志文件名，格式为 程序名-logrotatex.log
-	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"-logrotatex.log")
+	// 构建默认的日志文件名，格式为 程序名_logrotatex.log
+	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"_logrotatex.log")
 	// 测试结束后删除该日志文件
 	defer func() { _ = os.Remove(filename) }()
 	// 创建一个 LogRotateX 实例，不指定文件名，使用默认配置
