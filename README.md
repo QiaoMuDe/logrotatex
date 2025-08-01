@@ -400,11 +400,34 @@ go test -bench=. -benchmem ./...
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
 
+## 🙏 致谢
+
+本项目基于 [natefinch/lumberjack](https://github.com/natefinch/lumberjack) 库的 v2 分支进行开发和扩展。我们对原作者 **Nate Finch** 及其团队的杰出工作表示诚挚的感谢！
+
+lumberjack 是一个优秀的 Go 日志轮转库，为我们提供了坚实的基础。在此基础上，LogRotateX 进行了以下主要改进和扩展：
+
+- 🔧 **构造函数支持** - 添加了 `NewLogRotateX()` 构造函数，简化初始化过程
+- 🛡️ **增强安全特性** - 内置路径安全验证，防止路径遍历攻击
+- 📊 **性能优化** - 优化文件扫描算法，提升大量文件场景下的性能
+- 🗜️ **ZIP 压缩** - 改进压缩格式为 ZIP，提供更好的兼容性
+- 🔒 **权限控制** - 增加文件权限配置选项
+- 🌐 **本地化支持** - 提供中文文档和更好的本地化体验
+
+我们深深感谢开源社区的贡献精神，也希望 LogRotateX 能够继续为 Go 开发者社区提供价值。
+
+### 原始项目信息
+
+- **原项目地址**: https://github.com/natefinch/lumberjack
+- **原作者**: Nate Finch
+- **基于分支**: v2
+- **原项目许可**: MIT License
+
 ## 🔗 相关链接
 
 - [API 文档](APIDOC.md) - 详细的 API 参考文档
 - [Gitee 仓库](https://gitee.com/MM-Q/logrotatex) - 源代码仓库
 - [问题反馈](https://gitee.com/MM-Q/logrotatex/issues) - 报告 Bug 或提出建议
+- [原始项目 lumberjack](https://github.com/natefinch/lumberjack) - 致敬原作者
 
 ---
 
