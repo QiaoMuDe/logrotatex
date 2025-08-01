@@ -130,7 +130,7 @@ func TestOpenExisting(t *testing.T) {
 }
 
 // TestWriteTooLong 测试当写入的数据长度超过日志文件最大大小时的行为。
-// 预期结果是写入操作失败，返回错误，且日志文件不会被创建。
+// 预期结果是写入操作成功，数据被完整写入新文件，不会丢失任何日志数据。
 func TestWriteTooLong(t *testing.T) {
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
@@ -153,18 +153,18 @@ func TestWriteTooLong(t *testing.T) {
 	b := []byte("booooooooooooooo!")
 	// 尝试向日志文件写入数据
 	n, err := l.Write(b)
-	// 验证写入操作是否返回错误
-	notNil(err, t)
-	// 验证写入的字节数是否为 0
-	equals(0, n, t)
-	// 验证返回的错误信息是否符合预期
-	equals(err.Error(),
-		fmt.Sprintf("写入长度 %d 超过最大文件大小 %d", len(b), l.MaxSize), t)
+	// 验证写入操作是否成功（不应该返回错误）
+	isNil(err, t)
+	// 验证写入的字节数是否等于数据长度（所有数据都应该被写入）
+	equals(len(b), n, t)
 
-	// 检查日志文件是否存在
-	_, err = os.Stat(logFile(dir))
-	// 验证日志文件是否不存在
-	assert(os.IsNotExist(err), t, "文件存在，但本不该被创建。")
+	// 验证日志文件是否存在且包含完整的数据
+	existsWithContent(logFile(dir), b, t)
+
+	// 由于写入的数据长度(17字节)超过了MaxSize(5字节)，
+	// 系统会先创建一个空文件，然后立即轮转它，
+	// 所以最终会有2个文件：当前日志文件和一个空的备份文件
+	fileCount(dir, 2, t)
 }
 
 // TestMakeLogDir 测试 LogRotateX 在日志目录不存在时，是否能正确创建目录并写入日志文件。
