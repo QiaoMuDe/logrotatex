@@ -117,6 +117,29 @@ type LogRotateX struct {
 	millWg sync.WaitGroup
 }
 
+// New 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
+// 这是一个函数变量别名，提供了更简洁的构造函数调用方式。
+//
+// 使用方式:
+//
+//	logger := logrotatex.New("logs/app.log")
+//	// 等价于: logger := logrotatex.NewLogRotateX("logs/app.log")
+//
+// 参数:
+//   - filename string: 日志文件的路径，会进行安全验证和清理
+//
+// 返回值:
+//   - *LogRotateX: 配置好的 LogRotateX 实例，使用默认配置
+//
+// 默认配置与 NewLogRotateX 完全相同:
+//   - MaxSize: 10MB
+//   - MaxAge: 0天 (不清理历史文件)
+//   - MaxBackups: 0个 (不清理备份文件)
+//   - LocalTime: true (使用本地时间)
+//   - Compress: false (禁用压缩)
+//   - FilePerm: 0600 (文件权限)
+var New = NewLogRotateX
+
 // NewLogRotateX 创建一个新的 LogRotateX 实例，使用指定的文件路径和合理的默认配置。
 // 该构造函数会验证和清理文件路径，确保路径安全性，并设置推荐的默认值。
 // 如果路径不安全或创建失败，此函数会立即 panic，确保问题能够快速被发现。

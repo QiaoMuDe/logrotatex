@@ -2,7 +2,7 @@
 
 ## 包信息
 
-**包名**: `logrotatex`  
+**包名**: `logrotatex`
 **导入路径**: `gitee.com/MM-Q/logrotatex`
 
 ## 包描述
@@ -83,6 +83,7 @@ type LogRotateX struct {
 #### 备份文件命名规则
 
 备份文件使用提供给 LogRotateX 的日志文件名，格式为 `name-timestamp.ext`，其中：
+
 - `name` 是不带扩展名的文件名
 - `timestamp` 是日志轮转时的时间，格式为 `2006-01-02T15-04-05.000`
 - `ext` 是原始扩展名
@@ -101,6 +102,39 @@ type LogRotateX struct {
 
 ## 构造函数
 
+### New (推荐)
+
+```go
+var New = NewLogRotateX
+```
+
+**描述**: `NewLogRotateX` 的简写形式，用于创建新的 LogRotateX 实例。这是一个函数变量别名，提供了更简洁的构造函数调用方式。
+
+#### 使用方式
+
+```go
+// 使用简写形式（推荐）
+logger := logrotatex.New("logs/app.log")
+
+// 等价于完整形式
+logger := logrotatex.NewLogRotateX("logs/app.log")
+```
+
+#### 参数
+
+- `filename string`: 日志文件的路径，会进行安全验证和清理
+
+#### 返回值
+
+- `*LogRotateX`: 配置好的 LogRotateX 实例，使用默认配置
+
+#### 优势
+
+- **简洁性**: 符合 Go 语言标准库的命名惯例
+- **易用性**: 更短的函数名，提升代码可读性
+- **兼容性**: 与 `NewLogRotateX` 完全等价，零性能开销
+- **标准化**: 遵循 Go 社区的最佳实践
+
 ### NewLogRotateX
 
 ```go
@@ -110,6 +144,8 @@ func NewLogRotateX(filename string) *LogRotateX
 **描述**: 创建一个新的 LogRotateX 实例，使用指定的文件路径和合理的默认配置。
 
 该构造函数会验证和清理文件路径，确保路径安全性，并设置推荐的默认值。如果路径不安全或创建失败，此函数会立即 panic，确保问题能够快速被发现。
+
+> **注意**: 推荐使用 `New` 简写形式，它更符合 Go 语言的命名惯例。
 
 #### 参数
 
@@ -121,14 +157,14 @@ func NewLogRotateX(filename string) *LogRotateX
 
 #### 默认配置
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| MaxSize | 10MB | 单个日志文件最大大小 |
-| MaxAge | 0天 | 日志文件最大保留时间，0表示不清理历史文件 |
-| MaxBackups | 0个 | 最大备份文件数量，0表示不清理备份文件 |
-| LocalTime | true | 使用本地时间 |
-| Compress | false | 禁用压缩 |
-| FilePerm | 0600 | 文件权限，所有者读写，组和其他用户只读 |
+| 配置项     | 默认值 | 说明                                      |
+| ---------- | ------ | ----------------------------------------- |
+| MaxSize    | 10MB   | 单个日志文件最大大小                      |
+| MaxAge     | 0天    | 日志文件最大保留时间，0表示不清理历史文件 |
+| MaxBackups | 0个    | 最大备份文件数量，0表示不清理备份文件     |
+| LocalTime  | true   | 使用本地时间                              |
+| Compress   | false  | 禁用压缩                                  |
+| FilePerm   | 0600   | 文件权限，所有者读写，组和其他用户只读    |
 
 > **注意**: 如果文件路径不安全或创建失败，此函数会 panic
 
@@ -288,25 +324,20 @@ import (
 func main() {
     // 创建日志轮转器
     rotator := logrotatex.NewLogRotateX("/var/log/myapp.log")
-    
+  
     // 配置参数（可选）
     rotator.MaxSize = 100    // 100MB
     rotator.MaxBackups = 3   // 保留3个备份文件
     rotator.MaxAge = 28      // 保留28天
     rotator.Compress = true  // 启用压缩
-    
+  
     // 设置为日志输出
     log.SetOutput(rotator)
-    
+  
     // 使用日志
     log.Println("这是一条测试日志")
-    
+  
     // 程序结束时关闭
     defer rotator.Close()
 }
 ```
-
----
-
-*文档生成时间: 2024年*  
-*版本: v1.0.0*
