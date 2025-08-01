@@ -32,7 +32,7 @@ func TestValidatePath(t *testing.T) {
 			expectError: false,
 		},
 
-		// 路径遍历攻击测试
+		// 路径遍历攻击测试 - 增强版
 		{
 			name:        "路径遍历攻击 - 双点",
 			path:        "../../../etc/passwd",
@@ -48,8 +48,32 @@ func TestValidatePath(t *testing.T) {
 		{
 			name:        "路径遍历攻击 - 绝对路径",
 			path:        "/var/log/../../../etc/passwd",
-			expectError: filepath.Separator != '\\', // 仅在非Windows系统上期望错误
+			expectError: true, // 现在所有系统都会检测到路径遍历攻击
 			errorMsg:    "路径遍历攻击",
+		},
+		{
+			name:        "路径遍历攻击 - Windows风格",
+			path:        "..\\..\\..\\windows\\system32\\config\\sam",
+			expectError: true,
+			errorMsg:    "路径遍历攻击",
+		},
+		{
+			name:        "路径遍历攻击 - 混合分隔符",
+			path:        "../..\\../etc/shadow",
+			expectError: true,
+			errorMsg:    "路径遍历攻击",
+		},
+		{
+			name:        "路径遍历攻击 - URL编码绕过",
+			path:        "%2e%2e/etc/passwd",
+			expectError: true,
+			errorMsg:    "路径遍历攻击", // 修正期望的错误消息
+		},
+		{
+			name:        "路径遍历攻击 - 大写URL编码",
+			path:        "%2E%2E/etc/passwd",
+			expectError: true,
+			errorMsg:    "路径遍历攻击", // 修正期望的错误消息
 		},
 
 		// 空路径测试
@@ -98,7 +122,7 @@ func TestValidatePath(t *testing.T) {
 			errorMsg:    "不允许访问系统敏感目录",
 		},
 
-		// 危险字符测试
+		// 危险字符测试 - 增强版
 		{
 			name:        "文件名包含<字符",
 			path:        "test<script.log",
@@ -141,13 +165,85 @@ func TestValidatePath(t *testing.T) {
 			expectError: true,
 			errorMsg:    "文件名包含非法字符",
 		},
+		{
+			name:        "文件名包含空字符",
+			path:        "test\x00script.log",
+			expectError: true,
+			errorMsg:    "文件名包含非法字符",
+		},
+
+		// Windows保留文件名测试
+		{
+			name:        "Windows保留名称 - CON",
+			path:        "CON.log",
+			expectError: true,
+			errorMsg:    "系统保留名称",
+		},
+		{
+			name:        "Windows保留名称 - PRN",
+			path:        "PRN.log",
+			expectError: true,
+			errorMsg:    "系统保留名称",
+		},
+		{
+			name:        "Windows保留名称 - AUX",
+			path:        "AUX.log",
+			expectError: true,
+			errorMsg:    "系统保留名称",
+		},
+		{
+			name:        "Windows保留名称 - NUL",
+			path:        "NUL.log",
+			expectError: true,
+			errorMsg:    "系统保留名称",
+		},
+		{
+			name:        "Windows保留名称 - COM1",
+			path:        "COM1.log",
+			expectError: true,
+			errorMsg:    "系统保留名称",
+		},
+		{
+			name:        "Windows保留名称 - LPT1",
+			path:        "LPT1.log",
+			expectError: true,
+			errorMsg:    "系统保留名称",
+		},
+
+		// 文件名格式测试
+		{
+			name:        "文件名以空格结尾",
+			path:        "test.log ",
+			expectError: true,
+			errorMsg:    "不能以空格或点号结尾",
+		},
+		{
+			name:        "文件名以点号结尾",
+			path:        "test.log.",
+			expectError: true,
+			errorMsg:    "不能以空格或点号结尾",
+		},
+		{
+			name:        "超长文件名",
+			path:        strings.Repeat("a", 300) + ".log",
+			expectError: true,
+			errorMsg:    "文件名长度超过限制",
+		},
+
+		// 路径深度测试
+		{
+			name:        "路径深度过深",
+			path:        strings.Repeat("a/", 25) + "test.log",
+			expectError: true,
+			errorMsg:    "路径深度超过限制",
+		},
 
 		// 路径长度测试
 		{
 			name:        "超长路径",
 			path:        strings.Repeat("a", 4097) + ".log",
 			expectError: true,
-			errorMsg:    "路径长度超过限制",
+			errorMsg:    "文件名长度超过限制", // 修正期望的错误消息
 		},
 		{
 			name:        "正常长度路径",

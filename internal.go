@@ -73,6 +73,45 @@ var dangerousPathsMap = map[string]string{
 	"/etc/ssh":     "SSH配置目录",
 }
 
+// dangerousPatternsMap 定义了路径遍历攻击的危险模式
+// 使用map进行O(1)查找，提高性能，避免slice遍历的O(n)复杂度
+var dangerousPatternsMap = map[string]bool{
+	"..":       true,
+	"..\\":     true,
+	"../":      true,
+	".\\..\\":  true,
+	"./..":     true,
+	"%2e%2e":   true,
+	"%2E%2E":   true,
+}
+
+// windowsReservedNamesMap 定义了Windows系统保留的文件名
+// 使用map进行O(1)查找，提高性能，避免slice遍历的O(n)复杂度
+var windowsReservedNamesMap = map[string]bool{
+	"CON":  true,
+	"PRN":  true,
+	"AUX":  true,
+	"NUL":  true,
+	"COM1": true,
+	"COM2": true,
+	"COM3": true,
+	"COM4": true,
+	"COM5": true,
+	"COM6": true,
+	"COM7": true,
+	"COM8": true,
+	"COM9": true,
+	"LPT1": true,
+	"LPT2": true,
+	"LPT3": true,
+	"LPT4": true,
+	"LPT5": true,
+	"LPT6": true,
+	"LPT7": true,
+	"LPT8": true,
+	"LPT9": true,
+}
+
 // logInfo 是一个便捷结构体，用于返回文件名及其嵌入的时间戳。
 // 它包含了日志文件的时间戳信息和文件系统信息，用于日志轮转时的文件管理。
 type logInfo struct {
