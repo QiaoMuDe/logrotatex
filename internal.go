@@ -101,9 +101,9 @@ func (l *LogRotateX) rotate() error {
 // 返回值：
 //   - 如果成功打开新的日志文件，返回 nil
 func (l *LogRotateX) openNew() error {
-	// 确保日志文件所在目录存在, os.MkdirAll会自动处理目录已存在的情况
+	// 确保日志文件所在目录存在，使用更安全的目录权限
 	// 如果目录不存在则创建，如果已存在则不执行任何操作
-	if err := os.MkdirAll(l.dir(), 0755); err != nil {
+	if err := os.MkdirAll(l.dir(), 0700); err != nil {
 		return fmt.Errorf("无法创建日志文件所需目录: %s", err)
 	}
 
@@ -191,6 +191,20 @@ func backupName(name string, local bool) string {
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
 
+// ensureFileOpen 确保日志文件已正确打开，如果未打开则尝试打开
+//
+// 参数:
+//   - writeLen: 预计写入的数据长度
+//
+// 返回值:
+//   - 如果文件已打开或成功打开文件, 返回 nil
+func (l *LogRotateX) ensureFileOpen(writeLen int) error {
+	if l.file != nil {
+		return nil
+	}
+	return l.openExistingOrNew(writeLen)
+}
+
 // openExistingOrNew 尝试打开现有的日志文件用于写入。
 // 如果文件存在且当前写入操作不会使文件大小超过 MaxSize, 则直接打开该文件。
 // 如果文件不存在, 或者写入操作会使文件大小超过 MaxSize, 则创建一个新的日志文件。
@@ -223,10 +237,10 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	}
 
 	// 以追加模式打开现有日志文件
-	// 使用FilePerm字段设置文件权限，如果未设置则使用默认值0644
+	// 使用更安全的默认权限0600
 	filePerm := l.FilePerm
 	if filePerm == 0 {
-		filePerm = os.FileMode(0644)
+		filePerm = os.FileMode(0600) // 修复：使用更安全的默认权限
 	}
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, filePerm)
 	if err != nil {
@@ -266,7 +280,7 @@ func (l *LogRotateX) filename() string {
 // 4. 压缩未压缩的日志文件（如果启用了压缩）
 //
 // 返回:
-//   - 操作过程中发生的错误，如果有多个错误，将返回最后一个错误
+//   - 操作过程中发生的错误，如果有多个错误，将返回聚合错误
 func (l *LogRotateX) millRunOnce() error {
 	// 快速路径: 如果没有设置备份保留数量, 备份保留天数, 启用压缩功能, 则直接返回
 	if l.MaxBackups == 0 && l.MaxAge == 0 && !l.Compress {
@@ -319,16 +333,17 @@ func (l *LogRotateX) millRunOnce() error {
 		}
 	}
 
+	// 收集所有错误
+	var errors []error
+
 	// 执行文件移除操作
-	var lastErr error
 	for _, f := range remove {
 		// 合并路径
 		filePath := filepath.Join(l.dir(), f.Name())
 
 		// 移除文件
 		if err := os.Remove(filePath); err != nil {
-			lastErr = fmt.Errorf("logrotatex: 移除日志文件 %s 失败: %w", filePath, err)
-			// 可以选择继续尝试移除其他文件，而不是立即返回
+			errors = append(errors, fmt.Errorf("移除日志文件 %s 失败: %w", filePath, err))
 		}
 	}
 
@@ -341,21 +356,45 @@ func (l *LogRotateX) millRunOnce() error {
 
 		// 压缩文件
 		if err := compressLogFile(filePath, compressPath); err != nil {
-			lastErr = fmt.Errorf("logrotatex: 压缩日志文件 %s 失败: %w", filePath, err)
+			errors = append(errors, fmt.Errorf("压缩日志文件 %s 失败: %w", filePath, err))
 		}
 	}
 
-	return lastErr
+	// 如果有错误，返回聚合错误
+	if len(errors) > 0 {
+		var errMsg strings.Builder
+		errMsg.WriteString("logrotatex: millRunOnce 执行过程中发生多个错误:\n")
+		for i, err := range errors {
+			errMsg.WriteString(fmt.Sprintf("  %d. %v\n", i+1, err))
+		}
+		return fmt.Errorf("%s", errMsg.String())
+	}
+
+	return nil
 }
 
 // millRun 在一个独立的 goroutine 中运行, 用于管理日志文件的压缩和清理操作。
 // 当日志文件发生轮转时, 会触发该 goroutine 执行一次清理操作。
+// 该goroutine会在收到done信号时安全退出。
 func (l *LogRotateX) millRun() {
-	for range l.millCh {
-		// 执行一次日志文件的压缩和清理操作
-		if err := l.millRunOnce(); err != nil {
-			// 记录错误但不中断处理
-			fmt.Printf("logrotatex: millRunOnce: %s\n", err)
+	defer func() {
+		// 确保在goroutine退出时进行清理
+		if r := recover(); r != nil {
+			fmt.Printf("logrotatex: millRun panic recovered: %v\n", r)
+		}
+	}()
+
+	for {
+		select {
+		case <-l.millCh:
+			// 执行一次日志文件的压缩和清理操作
+			if err := l.millRunOnce(); err != nil {
+				// 使用更好的错误记录方式
+				fmt.Printf("logrotatex: millRunOnce 执行失败: %v\n", err)
+			}
+		case <-l.millDone:
+			// 收到退出信号，安全退出goroutine
+			return
 		}
 	}
 }
@@ -364,11 +403,19 @@ func (l *LogRotateX) millRun() {
 // 如果尚未启动管理 goroutine, 则会启动它。
 func (l *LogRotateX) mill() {
 	l.startMill.Do(func() {
-		// 创建一个缓冲通道, 用于触发日志文件的压缩和清理操作
+		// 创建通道用于goroutine通信
 		l.millCh = make(chan bool, 1)
+		l.millDone = make(chan struct{})
+		l.millStarted = true
 		// 启动一个独立的 goroutine 来执行日志文件的压缩和清理操作
 		go l.millRun()
 	})
+
+	// 如果goroutine已经停止，则不发送信号
+	if !l.millStarted {
+		return
+	}
+
 	// 向通道发送一个信号, 触发一次日志文件的压缩和清理操作
 	select {
 	case l.millCh <- true:

@@ -13,6 +13,7 @@
 package logrotatex
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -88,8 +89,14 @@ type LogRotateX struct {
 	// millCh 是一个通道, 用于通知 LogRotateX 进行压缩和删除旧日志文件。
 	millCh chan bool
 
+	// millDone 是一个通道, 用于通知mill goroutine退出
+	millDone chan struct{}
+
 	// startMill 是一个 sync.Once, 用于确保只启动一次压缩和删除旧日志文件的 goroutine。
 	startMill sync.Once
+
+	// millStarted 标记mill goroutine是否已启动
+	millStarted bool
 }
 
 // Write 实现了 io.Writer 接口，用于向日志文件写入数据。
@@ -111,41 +118,39 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 计算要写入的数据长度
 	writeLen := int64(len(p))
 
-	// 检查当前日志文件是否未打开
-	if l.file == nil {
-		// 如果文件未打开, 尝试打开现有文件或创建新文件
-		if err = l.openExistingOrNew(len(p)); err != nil {
-			// 若打开或创建文件失败, 返回错误
-			return 0, err
-		}
+	// 确保文件已正确打开
+	if err = l.ensureFileOpen(len(p)); err != nil {
+		return 0, err
 	}
 
-	// 计算当前文件剩余可写入空间
-	remainingSpace := l.max() - l.size
-
-	// 如果当前文件空间不足，先轮转再写入
-	if writeLen > remainingSpace {
+	// 检查是否需要轮转
+	if l.size+writeLen > l.max() {
 		// 执行日志轮转操作
 		if err := l.rotate(); err != nil {
 			return 0, err
 		}
-
-		// 轮转后重新检查文件是否打开
-		if l.file == nil {
-			if err = l.openExistingOrNew(len(p)); err != nil {
-				return 0, err
-			}
+		// 轮转后必须重新确保文件打开
+		if err = l.ensureFileOpen(len(p)); err != nil {
+			return 0, err
 		}
 	}
 
-	// 安全地将所有数据写入文件（当前文件或新文件）
+	// 双重检查确保文件句柄有效
+	if l.file == nil {
+		return 0, fmt.Errorf("logrotatex: 文件句柄无效，无法写入数据")
+	}
+
+	// 安全地将所有数据写入文件
 	n, err = l.file.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("logrotatex: 写入文件失败: %w", err)
+	}
 	l.size += int64(n)
-	return n, err
+	return n, nil
 }
 
 // Close 是 LogRotateX 类型的 Close 方法, 用于关闭日志记录器。
-// 该方法会关闭当前打开的日志文件，释放相关资源。
+// 该方法会关闭当前打开的日志文件，释放相关资源，并停止后台goroutine。
 // 此操作是线程安全的，使用互斥锁保护。
 //
 // 返回值:
@@ -153,9 +158,21 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 func (l *LogRotateX) Close() error {
 	// 加锁, 确保在并发环境下只有一个 goroutine 能够执行下面的代码
 	l.mu.Lock()
-	// 在函数结束时解锁, 保证锁一定会被释放
 	defer l.mu.Unlock()
-	// 调用 LogRotateX 的 close 方法, 执行具体的关闭操作, 并返回可能出现的错误
+
+	// 停止mill goroutine
+	if l.millStarted && l.millDone != nil {
+		close(l.millDone)
+		l.millStarted = false
+	}
+
+	// 关闭mill通道
+	if l.millCh != nil {
+		close(l.millCh)
+		l.millCh = nil
+	}
+
+	// 调用 LogRotateX 的 close 方法, 执行具体的关闭操作
 	return l.close()
 }
 
