@@ -18,7 +18,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,100 +34,6 @@ var (
 	// megabyte 是用于将MB转换为字节的常量。
 	megabyte = 1024 * 1024
 )
-
-// validatePath 验证文件路径的安全性，防止路径遍历攻击
-// 参数:
-//   - path string: 要验证的文件路径
-//
-// 返回值:
-//   - error: 如果路径不安全则返回错误，否则返回 nil
-func validatePath(path string) error {
-	if path == "" {
-		return fmt.Errorf("路径不能为空")
-	}
-
-	// 1. 使用 filepath.Clean 清理路径，移除多余的分隔符和相对路径元素
-	cleanPath := filepath.Clean(path)
-
-	// 2. 检查是否包含路径遍历攻击模式
-	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("检测到路径遍历攻击，路径包含 '..' 元素: %s", path)
-	}
-
-	// 3. 检查是否为绝对路径中的危险路径
-	if filepath.IsAbs(cleanPath) {
-		// 获取绝对路径
-		absPath, err := filepath.Abs(cleanPath)
-		if err != nil {
-			return fmt.Errorf("无法获取绝对路径: %w", err)
-		}
-
-		// 检查是否试图访问系统敏感目录
-		dangerousPaths := []string{
-			"/etc",
-			"/proc",
-			"/sys",
-			"/dev",
-			"/boot",
-			"/root",
-		}
-
-		for _, dangerous := range dangerousPaths {
-			if strings.HasPrefix(absPath, dangerous) {
-				return fmt.Errorf("不允许访问系统敏感目录: %s", absPath)
-			}
-		}
-	}
-
-	// 4. 检查文件名中的危险字符
-	filename := filepath.Base(cleanPath)
-	if strings.ContainsAny(filename, "<>:\"|?*") {
-		return fmt.Errorf("文件名包含非法字符: %s", filename)
-	}
-
-	// 5. 检查路径长度限制
-	if len(cleanPath) > 4096 {
-		return fmt.Errorf("路径长度超过限制 (4096 字符): %d", len(cleanPath))
-	}
-
-	return nil
-}
-
-// sanitizePath 清理并返回安全的文件路径
-// 参数:
-//   - path string: 原始文件路径
-//
-// 返回值:
-//   - string: 清理后的安全路径
-//   - error: 如果路径不安全则返回错误
-func sanitizePath(path string) (string, error) {
-	if err := validatePath(path); err != nil {
-		return "", err
-	}
-
-	// 使用 filepath.Clean 清理路径
-	cleanPath := filepath.Clean(path)
-
-	// 如果是相对路径，确保它不会跳出当前工作目录
-	if !filepath.IsAbs(cleanPath) {
-		// 获取当前工作目录
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("无法获取当前工作目录: %w", err)
-		}
-
-		// 将相对路径转换为绝对路径
-		absPath := filepath.Join(wd, cleanPath)
-		cleanPath = filepath.Clean(absPath)
-
-		// 确保最终路径仍在工作目录下
-		if !strings.HasPrefix(cleanPath, wd) {
-			return "", fmt.Errorf("路径试图跳出工作目录: %s", path)
-		}
-	}
-
-	return cleanPath, nil
-}
 
 // LogRotateX 是一个 io.WriteCloser，它会将日志写入指定的文件名。
 //

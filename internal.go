@@ -777,3 +777,116 @@ func (b byFormatTime) Swap(i, j int) {
 func (b byFormatTime) Len() int {
 	return len(b)
 }
+
+// validatePath 验证文件路径的安全性，防止路径遍历攻击
+// 参数:
+//   - path string: 要验证的文件路径
+//
+// 返回值:
+//   - error: 如果路径不安全则返回错误，否则返回 nil
+func validatePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("路径不能为空")
+	}
+
+	// 1. 使用 filepath.Clean 清理路径，移除多余的分隔符和相对路径元素
+	cleanPath := filepath.Clean(path)
+
+	// 2. 检查是否包含路径遍历攻击模式
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("检测到路径遍历攻击，路径包含 '..' 元素: %s", path)
+	}
+
+	// 3. 检查是否为绝对路径中的危险路径
+	if filepath.IsAbs(cleanPath) {
+		// 获取绝对路径
+		absPath, err := filepath.Abs(cleanPath)
+		if err != nil {
+			return fmt.Errorf("无法获取绝对路径: %w", err)
+		}
+
+		// 检查是否试图访问系统敏感目录
+		dangerousPaths := []string{
+			// === 核心系统目录（绝对不能碰）===
+			"/etc",                                   // 系统配置
+			"/boot",                                  // 启动文件
+			"/usr/bin", "/usr/sbin", "/sbin", "/bin", // 系统可执行文件
+			"/proc", "/sys", "/dev", // 虚拟文件系统
+			"/root", // 超级用户目录
+
+			// === 系统库目录（高风险）===
+			"/lib", "/lib64", "/usr/lib", "/usr/lib64",
+			"/lib/modules", // 内核模块
+
+			// === 系统运行时（高风险）===
+			"/run", "/var/run", // 运行时文件
+			"/var/lock", // 锁文件
+
+			// === 特别危险的系统日志 ===
+			"/var/log/kern.log", // 内核日志
+			"/var/log/auth.log", // 认证日志
+			"/var/log/secure",   // 安全日志
+			"/var/log/messages", // 系统消息
+			"/var/log/syslog",   // 系统日志
+
+			// === 关键系统文件 ===
+			"/etc/passwd", "/etc/shadow", "/etc/group",
+			"/etc/sudoers", "/etc/ssh",
+		}
+
+		for _, dangerous := range dangerousPaths {
+			if strings.HasPrefix(absPath, dangerous) {
+				return fmt.Errorf("不允许访问系统敏感目录: %s", absPath)
+			}
+		}
+	}
+
+	// 4. 检查文件名中的危险字符
+	filename := filepath.Base(cleanPath)
+	if strings.ContainsAny(filename, "<>:\"|?*") {
+		return fmt.Errorf("文件名包含非法字符: %s", filename)
+	}
+
+	// 5. 检查路径长度限制
+	if len(cleanPath) > 4096 {
+		return fmt.Errorf("路径长度超过限制 (4096 字符): %d", len(cleanPath))
+	}
+
+	return nil
+}
+
+// sanitizePath 清理并返回安全的文件路径
+// 参数:
+//   - path string: 原始文件路径
+//
+// 返回值:
+//   - string: 清理后的安全路径
+//   - error: 如果路径不安全则返回错误
+func sanitizePath(path string) (string, error) {
+	if err := validatePath(path); err != nil {
+		return "", err
+	}
+
+	// 使用 filepath.Clean 清理路径
+	cleanPath := filepath.Clean(path)
+
+	// 如果是相对路径，确保它不会跳出当前工作目录
+	if !filepath.IsAbs(cleanPath) {
+		// 获取当前工作目录
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("无法获取当前工作目录: %w", err)
+		}
+
+		// 将相对路径转换为绝对路径
+		absPath := filepath.Join(wd, cleanPath)
+		cleanPath = filepath.Clean(absPath)
+
+		// 确保最终路径仍在工作目录下
+		if !strings.HasPrefix(cleanPath, wd) {
+			return "", fmt.Errorf("路径试图跳出工作目录: %s", path)
+		}
+	}
+
+	return cleanPath, nil
+}
