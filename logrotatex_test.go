@@ -356,7 +356,7 @@ func TestCompressOnRotate(t *testing.T) {
 	file := zipReader.File[0]
 	rc, err := file.Open()
 	isNil(err, t)
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	// 验证解压后的内容与原始数据一致
 	var buf bytes.Buffer
@@ -443,7 +443,7 @@ func TestCompressOnResume(t *testing.T) {
 	file := zipReader.File[0]
 	rc, err := file.Open()
 	isNil(err, t)
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	// 验证解压后的内容与原始数据一致
 	var buf bytes.Buffer

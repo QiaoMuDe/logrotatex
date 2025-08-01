@@ -8,12 +8,6 @@ import (
 	"testing"
 )
 
-// assert 函数用于在条件为 false 时记录给定的消息。
-func assert(condition bool, t testing.TB, msg string, v ...interface{}) {
-	// 调用 assertUp 函数，将调用栈层级设为 1
-	assertUp(condition, t, 1, msg, v...)
-}
-
 // assertUp 函数与 assert 类似，但用于辅助函数内部，确保失败报告的文件和行号对应调用栈中更高层级。
 func assertUp(condition bool, t testing.TB, caller int, msg string, v ...interface{}) {
 	if !condition {
@@ -60,24 +54,6 @@ func isNilUp(obtained interface{}, t testing.TB, caller int) {
 		_, file, line, _ := runtime.Caller(caller + 1)
 		// 打印期望为 nil 但实际得到的值的信息
 		fmt.Printf("%s:%d: expected nil, got: %v\n", filepath.Base(file), line, obtained)
-		// 标记测试失败并立即终止当前测试
-		t.FailNow()
-	}
-}
-
-// notNil 函数在给定值为 nil 时报告失败。
-func notNil(obtained interface{}, t testing.TB) {
-	// 调用 notNilUp 函数，将调用栈层级设为 1
-	notNilUp(obtained, t, 1)
-}
-
-// notNilUp 函数与 notNil 类似，但用于辅助函数内部，确保失败报告的文件和行号对应调用栈中更高层级。
-func notNilUp(obtained interface{}, t testing.TB, caller int) {
-	if _isNil(obtained) {
-		// 获取调用者的文件路径、行号等信息
-		_, file, line, _ := runtime.Caller(caller + 1)
-		// 打印期望为非 nil 但实际得到的值的信息
-		fmt.Printf("%s:%d: expected non-nil, got: %v\n", filepath.Base(file), line, obtained)
 		// 标记测试失败并立即终止当前测试
 		t.FailNow()
 	}
