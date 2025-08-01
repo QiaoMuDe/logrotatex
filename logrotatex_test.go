@@ -504,13 +504,13 @@ func logFile(dir string) string {
 // backupFile 返回指定目录下当前模拟时间对应的备份文件的完整路径，使用 UTC 时间格式。
 func backupFile(dir string) string {
 	// 将目录路径、备份文件名前缀、当前模拟时间的 UTC 格式和文件扩展名拼接，得到完整的备份文件路径
-	return filepath.Join(dir, "foobar-"+fakeTime().UTC().Format(backupTimeFormat)+".log")
+	return filepath.Join(dir, "foobar_"+fakeTime().UTC().Format(backupTimeFormat)+".log")
 }
 
 // backupFileLocal 返回指定目录下当前模拟时间对应的备份文件的完整路径，使用本地时间格式。
 func backupFileLocal(dir string) string {
 	// 将目录路径、备份文件名前缀、当前模拟时间的本地时间格式和文件扩展名拼接，得到完整的备份文件路径
-	return filepath.Join(dir, "foobar-"+fakeTime().Format(backupTimeFormat)+".log")
+	return filepath.Join(dir, "foobar_"+fakeTime().Format(backupTimeFormat)+".log")
 }
 
 // fileCount 检查指定目录下的文件数量是否与预期数量一致。

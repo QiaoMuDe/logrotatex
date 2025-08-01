@@ -59,6 +59,7 @@ func TestMaxBackups(t *testing.T) {
 
 	// 获取第二个备份文件的路径
 	secondFilename := backupFile(dir)
+
 	// 验证第二个备份文件的内容是否为初始数据
 	existsWithContent(secondFilename, b, t)
 

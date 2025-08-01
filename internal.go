@@ -186,10 +186,8 @@ func backupName(name string, local bool) string {
 
 	// 格式化时间戳
 	timestamp := t.Format(backupTimeFormat)
-	// 拼接新的备份文件名
-	if prefix == "" {
-		return filepath.Join(dir, fmt.Sprintf("%s%s", timestamp, ext))
-	}
+
+	// 生成新的备份文件名
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
 
@@ -286,22 +284,9 @@ func (l *LogRotateX) millRunOnce() error {
 
 	// 处理备份保留数量规则
 	if l.MaxBackups > 0 && l.MaxBackups < len(files) {
-		preserved := make(map[string]bool) // 用于记录保留的日志文件
-		var remaining []logInfo            // 保留的日志文件列表
-		for _, f := range files {
-			// 如果是压缩文件，则忽略压缩后缀，只保留原始文件名
-			fn := f.Name()
-			fn = strings.TrimSuffix(fn, compressSuffix)
-			preserved[fn] = true
-
-			// 如果超出最大保留数量，则将多余的文件加入移除列表
-			if len(preserved) > l.MaxBackups {
-				remove = append(remove, f)
-			} else {
-				remaining = append(remaining, f)
-			}
-		}
-		files = remaining // 更新文件列表为保留的文件
+		// 直接保留最新的 MaxBackups 个文件，移除多余的文件
+		remove = append(remove, files[l.MaxBackups:]...)
+		files = files[:l.MaxBackups]
 	}
 
 	// 处理备份保留天数规则
@@ -405,6 +390,8 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 		return nil, fmt.Errorf("logrotatex: 无法读取日志文件目录: %w", err)
 	}
 	logFiles := []logInfo{}
+	// 用于跟踪已处理的时间戳，避免重复计算同一时间戳的压缩和非压缩文件
+	processedTimestamps := make(map[time.Time]bool)
 
 	// 获取日志文件的前缀和扩展名
 	prefix, ext := l.prefixAndExt()
@@ -426,16 +413,23 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 			continue
 		}
 
+		var timestamp time.Time
+		var isLogFile bool
+
 		// 尝试从文件名中解析时间戳（未压缩文件）
 		if t, err := l.timeFromName(f.Name(), prefix, ext); err == nil {
-			logFiles = append(logFiles, logInfo{t, info})
-			continue
+			timestamp = t
+			isLogFile = true
+		} else if t, err := l.timeFromName(f.Name(), prefix, ext+compressSuffix); err == nil {
+			// 尝试从文件名中解析时间戳（压缩文件）
+			timestamp = t
+			isLogFile = true
 		}
 
-		// 尝试从文件名中解析时间戳（压缩文件）
-		if t, err := l.timeFromName(f.Name(), prefix, ext+compressSuffix); err == nil {
-			logFiles = append(logFiles, logInfo{t, info})
-			continue
+		// 如果是日志文件且时间戳未被处理过，则添加到列表中
+		if isLogFile && !processedTimestamps[timestamp] {
+			logFiles = append(logFiles, logInfo{timestamp, info})
+			processedTimestamps[timestamp] = true
 		}
 		// 如果无法解析时间戳, 则说明该文件不是由 logrotatex 生成的备份文件
 	}
@@ -477,8 +471,18 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 	if !strings.HasSuffix(filename, ext) {
 		return time.Time{}, fmt.Errorf("logrotatex: 扩展名不匹配")
 	}
+
+	// 计算时间戳的起始和结束位置
+	startPos := len(prefix) + 1 // 跳过前缀和分隔符 "_"
+	endPos := len(filename) - len(ext)
+
+	// 检查边界条件，防止数组越界
+	if startPos >= len(filename) || startPos >= endPos {
+		return time.Time{}, fmt.Errorf("logrotatex: 文件名格式不正确")
+	}
+
 	// 提取时间戳部分
-	ts := filename[len(prefix) : len(filename)-len(ext)]
+	ts := filename[startPos:endPos]
 	// 解析时间戳
 	return time.Parse(backupTimeFormat, ts)
 }
@@ -514,13 +518,15 @@ func (l *LogRotateX) dir() string {
 //   - prefix: 文件名部分
 //   - ext: 扩展名部分
 func (l *LogRotateX) prefixAndExt() (prefix, ext string) {
-	filename := filepath.Base(l.filename())          // 获取日志文件的基本名称
-	ext = filepath.Ext(filename)                     // 提取文件的扩展名
-	prefix = filename[:len(filename)-len(ext)] + "_" // 提取文件名部分并添加分隔符
-	// 如果文件名没有前缀，则使用空字符串
-	if prefix == "_" {
-		prefix = ""
+	filename := filepath.Base(l.filename())    // 获取日志文件的基本名称
+	ext = filepath.Ext(filename)               // 提取文件的扩展名
+	prefix = filename[:len(filename)-len(ext)] // 提取文件名部分并添加分隔符
+
+	// 如果文件名没有前缀，则使用程序名作为前缀
+	if prefix == "" {
+		prefix = filepath.Base(os.Args[0])
 	}
+
 	return prefix, ext
 }
 
