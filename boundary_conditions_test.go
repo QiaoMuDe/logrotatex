@@ -589,6 +589,12 @@ func TestEdgeCases(t *testing.T) {
 			if err := l.Close(); err != nil {
 				t.Logf("关闭日志文件失败: %v", err)
 			}
+			// 清理生成的默认文件
+			if l.filename() != "" {
+				if err := os.Remove(l.filename()); err != nil && !os.IsNotExist(err) {
+					t.Logf("清理默认文件失败: %v", err)
+				}
+			}
 		}()
 
 		_, err := l.Write([]byte("test"))
