@@ -97,8 +97,11 @@ type LogRotateX struct {
 	// millCh 是一个通道, 用于通知 LogRotateX 进行压缩和删除旧日志文件。
 	millCh chan bool
 
-	// millDone 是一个通道, 用于通知mill goroutine退出
-	millDone chan struct{}
+	// millCtx 是mill goroutine的上下文，用于优雅关闭
+	millCtx context.Context
+
+	// millCancel 是mill goroutine的取消函数
+	millCancel context.CancelFunc
 
 	/* ========== 生命周期控制 ========== */
 	// startMill 是一个 sync.Once, 用于确保只启动一次压缩和删除旧日志文件的 goroutine。
@@ -109,6 +112,9 @@ type LogRotateX struct {
 
 	// millStarted 标记mill goroutine是否已启动 (使用原子操作)
 	millStarted atomic.Bool
+
+	// millWg 用于等待mill goroutine完全退出
+	millWg sync.WaitGroup
 }
 
 // NewLogRotateX 创建一个新的 LogRotateX 实例，使用指定的文件路径和合理的默认配置。
@@ -241,14 +247,11 @@ func (l *LogRotateX) Close() error {
 			}()
 
 			// 停止mill goroutine
-			if l.millStarted.Load() && l.millDone != nil {
-				// 使用select避免在通道已关闭时阻塞
-				select {
-				case <-l.millDone:
-					// 通道已关闭
-				default:
-					close(l.millDone)
-				}
+			if l.millStarted.Load() && l.millCancel != nil {
+				// 取消context，通知goroutine退出
+				l.millCancel()
+				// 等待goroutine完全退出
+				l.millWg.Wait()
 				l.millStarted.Store(false)
 			}
 

@@ -76,13 +76,13 @@ var dangerousPathsMap = map[string]string{
 // dangerousPatternsMap 定义了路径遍历攻击的危险模式
 // 使用map进行O(1)查找，提高性能，避免slice遍历的O(n)复杂度
 var dangerousPatternsMap = map[string]bool{
-	"..":       true,
-	"..\\":     true,
-	"../":      true,
-	".\\..\\":  true,
-	"./..":     true,
-	"%2e%2e":   true,
-	"%2E%2E":   true,
+	"..":      true,
+	"..\\":    true,
+	"../":     true,
+	".\\..\\": true,
+	"./..":    true,
+	"%2e%2e":  true,
+	"%2E%2E":  true,
 }
 
 // windowsReservedNamesMap 定义了Windows系统保留的文件名

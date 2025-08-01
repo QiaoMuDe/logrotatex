@@ -3,6 +3,7 @@ package logrotatex
 import (
 	"archive/zip"
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -121,9 +122,11 @@ func (l *LogRotateX) millRunOnce() error {
 
 // millRun 在一个独立的 goroutine 中运行, 用于管理日志文件的压缩和清理操作。
 // 当日志文件发生轮转时, 会触发该 goroutine 执行一次清理操作。
-// 该goroutine会在收到done信号时安全退出。
+// 该goroutine会在收到context取消信号时安全退出。
 func (l *LogRotateX) millRun() {
 	defer func() {
+		// 标记goroutine已完成
+		l.millWg.Done()
 		// 确保在goroutine退出时进行清理
 		if r := recover(); r != nil {
 			fmt.Printf("logrotatex: millRun panic recovered: %v\n", r)
@@ -138,8 +141,8 @@ func (l *LogRotateX) millRun() {
 				// 使用更好的错误记录方式
 				fmt.Printf("logrotatex: millRunOnce 执行失败: %v\n", err)
 			}
-		case <-l.millDone:
-			// 收到退出信号，安全退出goroutine
+		case <-l.millCtx.Done():
+			// 收到context取消信号，安全退出goroutine
 			return
 		}
 	}
@@ -149,10 +152,11 @@ func (l *LogRotateX) millRun() {
 // 如果尚未启动管理 goroutine, 则会启动它。
 func (l *LogRotateX) mill() {
 	l.startMill.Do(func() {
-		// 创建通道用于goroutine通信
+		// 创建context用于goroutine生命周期管理
+		l.millCtx, l.millCancel = context.WithCancel(context.Background())
 		l.millCh = make(chan bool, 1)
-		l.millDone = make(chan struct{})
 		l.millStarted.Store(true)
+		l.millWg.Add(1)
 		// 启动一个独立的 goroutine 来执行日志文件的压缩和清理操作
 		go l.millRun()
 	})
@@ -172,7 +176,7 @@ func (l *LogRotateX) mill() {
 
 // oldLogFiles 返回存储在当前日志文件所在目录中的所有备份日志文件列表,
 // 并按修改时间(ModTime)对这些文件进行排序
-// 使用优化的文件扫描策略，减少不必要的系统调用和内存分配
+// 优化版本：单次扫描，时间复杂度O(n)，大幅提升性能
 //
 // 返回值:
 //   - []logInfo: 包含所有备份日志文件的列表
@@ -194,29 +198,16 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	currentFileName := filepath.Base(l.filename())
 	compressedExt := ext + compressSuffix
 
-	// 第一遍扫描：快速过滤，只统计符合条件的文件数量
-	candidateCount := 0
-	for _, f := range files {
-		if f.IsDir() || f.Name() == currentFileName {
-			continue
-		}
-		fileName := f.Name()
-		if (prefix == "" || strings.HasPrefix(fileName, prefix)) &&
-			(strings.HasSuffix(fileName, ext) || strings.HasSuffix(fileName, compressedExt)) {
-			candidateCount++
-		}
+	// 预估容量，避免频繁扩容
+	estimatedCapacity := len(files) / 4
+	if estimatedCapacity < 10 {
+		estimatedCapacity = 10
 	}
 
-	// 如果没有候选文件，直接返回
-	if candidateCount == 0 {
-		return nil, nil
-	}
+	logFiles := make([]logInfo, 0, estimatedCapacity)
+	timestampSet := make(map[time.Time]bool, estimatedCapacity)
 
-	// 精确分配内存，避免重新分配
-	logFiles := make([]logInfo, 0, candidateCount)
-	processedTimestamps := make(map[time.Time]bool, candidateCount)
-
-	// 第二遍扫描：处理符合条件的文件
+	// 单次扫描：O(n)时间复杂度
 	for _, f := range files {
 		// 快速过滤：跳过目录和当前日志文件
 		if f.IsDir() || f.Name() == currentFileName {
@@ -225,43 +216,74 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 
 		fileName := f.Name()
 
-		// 快速过滤：检查文件名前缀和扩展名
+		// 快速前缀检查
 		if prefix != "" && !strings.HasPrefix(fileName, prefix) {
 			continue
 		}
-		if !strings.HasSuffix(fileName, ext) && !strings.HasSuffix(fileName, compressedExt) {
-			continue
-		}
 
-		// 尝试从文件名中解析时间戳（避免重复字符串操作）
-		var timestamp time.Time
-		var parseErr error
+		// 确定文件类型和扩展名
+		var targetExt string
 
 		if strings.HasSuffix(fileName, compressedExt) {
-			timestamp, parseErr = l.timeFromName(fileName, prefix, compressedExt)
+			targetExt = compressedExt
+		} else if strings.HasSuffix(fileName, ext) {
+			targetExt = ext
 		} else {
-			timestamp, parseErr = l.timeFromName(fileName, prefix, ext)
+			continue // 不匹配任何扩展名，跳过
 		}
 
-		// 如果解析失败或时间戳已处理过，跳过
-		if parseErr != nil || processedTimestamps[timestamp] {
+		// 解析时间戳（优化版本）
+		timestamp, parseErr := l.fastTimeFromName(fileName, prefix, targetExt)
+		if parseErr != nil {
 			continue
 		}
 
-		// 只有在确认需要时才获取文件信息（延迟获取）
+		// 检查时间戳重复（防止重复处理同一时间戳的文件）
+		if timestampSet[timestamp] {
+			continue
+		}
+
+		// 获取文件信息（延迟到确认需要时）
 		info, err := f.Info()
 		if err != nil {
 			continue
 		}
 
+		// 添加到结果集
 		logFiles = append(logFiles, logInfo{timestamp, info})
-		processedTimestamps[timestamp] = true
+		timestampSet[timestamp] = true
 	}
 
-	// 按文件的修改时间对日志文件进行排序
+	// 按时间戳排序（从新到旧）
 	sort.Sort(byFormatTime(logFiles))
 
 	return logFiles, nil
+}
+
+// fastTimeFromName 优化版本的时间戳解析函数
+// 减少字符串操作，提升解析性能
+func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, error) {
+	// 计算时间戳的起始和结束位置
+	var startPos, endPos int
+
+	if prefix == "" {
+		startPos = 0
+		endPos = len(filename) - len(ext)
+	} else {
+		startPos = len(prefix) + 1 // 跳过前缀和分隔符 "_"
+		endPos = len(filename) - len(ext)
+	}
+
+	// 边界检查
+	if startPos >= endPos || startPos < 0 || endPos > len(filename) {
+		return time.Time{}, fmt.Errorf("logrotatex: 文件名格式不正确")
+	}
+
+	// 直接从计算位置提取时间戳
+	timestampStr := filename[startPos:endPos]
+
+	// 解析时间戳
+	return time.Parse(backupTimeFormat, timestampStr)
 }
 
 // timeFromName 从文件名中提取格式化的时间戳。

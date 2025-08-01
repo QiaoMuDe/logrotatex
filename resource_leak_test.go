@@ -62,7 +62,7 @@ func TestFileHandleLeakPrevention(t *testing.T) {
 
 	// 允许少量的文件描述符增长（测试环境可能有其他操作）
 	if fdDiff > 5 {
-		t.Errorf("可能存在文件句柄泄漏: 初始FD数量=%d, 最终FD数量=%d, 差异=%d", 
+		t.Errorf("可能存在文件句柄泄漏: 初始FD数量=%d, 最终FD数量=%d, 差异=%d",
 			initialFDs, finalFDs, fdDiff)
 	}
 
@@ -93,14 +93,14 @@ func TestConcurrentFileHandleManagement(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < numWrites; j++ {
-				data := fmt.Sprintf("Goroutine %d, Write %d: %s\n", 
+				data := fmt.Sprintf("Goroutine %d, Write %d: %s\n",
 					id, j, strings.Repeat("data", 100))
 				_, err := logger.Write([]byte(data))
 				if err != nil {
 					t.Errorf("并发写入失败 (goroutine %d, write %d): %v", id, j, err)
 					return
 				}
-				
+
 				// 偶尔触发轮转
 				if j%50 == 0 {
 					_ = logger.Rotate()
@@ -202,7 +202,7 @@ func getOpenFileDescriptors() int {
 		}
 		return len(entries)
 	}
-	
+
 	// 在其他系统上，返回一个固定值（测试时会计算差异）
 	return 0
 }
