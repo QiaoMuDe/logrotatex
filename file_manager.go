@@ -312,6 +312,7 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 }
 
 // compressLogFile 压缩指定的日志文件, 并在成功后删除原始未压缩的日志文件。
+// 使用defer确保所有文件句柄在异常情况下都能正确关闭，防止资源泄漏。
 // 参数:
 //
 //	src - 源日志文件路径
@@ -329,60 +330,70 @@ func compressLogFile(src, dst string) (err error) {
 		return fmt.Errorf("logrotatex: 目标文件路径不安全: %w", err)
 	}
 
+	// 获取源日志文件的状态信息（在打开文件之前）
+	fi, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("logrotatex: 无法获取日志文件的状态信息: %w", err)
+	}
+
 	// 打开源日志文件
 	f, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("logrotatex: 无法打开日志文件: %w", err)
 	}
-
-	// 获取源日志文件的状态信息
-	fi, err := os.Stat(src)
-	if err != nil {
-		_ = f.Close() // 确保在错误时关闭文件
-		return fmt.Errorf("logrotatex: 无法获取日志文件的状态信息: %w", err)
-	}
+	// 使用defer确保源文件在函数退出时一定会被关闭
+	defer func() { _ = f.Close() }()
 
 	// 创建目标ZIP文件
 	zipFile, err := os.Create(dst)
 	if err != nil {
-		_ = f.Close() // 确保在错误时关闭文件
 		return fmt.Errorf("logrotatex: 创建压缩文件失败: %w", err)
 	}
-
-	// 立即设置目标压缩文件的所有者信息
-	if chownErr := chown(dst, fi); chownErr != nil {
-		_ = f.Close()
-		_ = zipFile.Close()
-		_ = os.Remove(dst) // 清理未完成的文件
-		return fmt.Errorf("logrotatex: 无法设置压缩日志文件的所有者: %w", chownErr)
-	}
+	// 使用defer确保ZIP文件在函数退出时一定会被关闭
+	defer func() { _ = zipFile.Close() }()
 
 	// 创建ZIP写入器
 	zipWriter := zip.NewWriter(zipFile)
+	// 使用defer确保ZIP写入器在函数退出时一定会被关闭
+	defer func() { _ = zipWriter.Close() }()
+
+	// 设置目标压缩文件的所有者信息
+	if chownErr := chown(dst, fi); chownErr != nil {
+		// 确保所有资源都已关闭
+		_ = f.Close()
+		_ = zipWriter.Close()
+		_ = zipFile.Close()
+		// 清理未完成的文件
+		_ = os.Remove(dst)
+		return fmt.Errorf("logrotatex: 无法设置压缩日志文件的所有者: %w", chownErr)
+	}
 
 	// 为源文件创建ZIP文件头
 	header, err := zip.FileInfoHeader(fi)
 	if err != nil {
+		// 确保所有资源都已关闭
 		_ = f.Close()
 		_ = zipWriter.Close()
 		_ = zipFile.Close()
-		_ = os.Remove(dst) // 清理未完成的文件
+		// 清理未完成的文件
+		_ = os.Remove(dst)
 		return fmt.Errorf("logrotatex: 创建ZIP文件头失败: %w", err)
 	}
 
 	// 设置文件头的名称为源文件名
 	header.Name = filepath.Base(src)
-
 	// 设置压缩方法为Deflate
 	header.Method = zip.Deflate
 
 	// 创建ZIP文件写入器
 	fileWriter, err := zipWriter.CreateHeader(header)
 	if err != nil {
+		// 确保所有资源都已关闭
 		_ = f.Close()
 		_ = zipWriter.Close()
 		_ = zipFile.Close()
-		_ = os.Remove(dst) // 清理未完成的文件
+		// 清理未完成的文件
+		_ = os.Remove(dst)
 		return fmt.Errorf("logrotatex: 创建ZIP文件写入器失败: %w", err)
 	}
 
@@ -395,10 +406,12 @@ func compressLogFile(src, dst string) (err error) {
 	// 使用缓冲区进行文件复制，提高性能
 	buffer := make([]byte, bufferSize)
 	if _, err := io.CopyBuffer(fileWriter, bufferedReader, buffer); err != nil {
+		// 确保所有资源都已关闭
 		_ = f.Close()
 		_ = zipWriter.Close()
 		_ = zipFile.Close()
-		_ = os.Remove(dst) // 清理未完成的文件
+		// 清理未完成的文件
+		_ = os.Remove(dst)
 		return fmt.Errorf("logrotatex: 写入ZIP文件失败: %w", err)
 	}
 
@@ -407,10 +420,15 @@ func compressLogFile(src, dst string) (err error) {
 	_ = zipWriter.Close()
 	_ = zipFile.Close()
 
-	// 删除原始未压缩的日志文件
-	if err := os.Remove(src); err != nil {
-		return fmt.Errorf("logrotatex: 删除原始日志文件失败: %w", err)
-	}
+	// 所有写入操作完成后，删除原始未压缩的日志文件
+	// 注意：这里不能使用defer，因为需要在所有文件句柄关闭后才能删除
+	// defer函数会在return之前执行，此时文件句柄还未关闭
+	// 所以我们在defer中处理删除操作
+	defer func() {
+		if err == nil {
+			_ = os.Remove(src)
+		}
+	}()
 
 	return nil
 }

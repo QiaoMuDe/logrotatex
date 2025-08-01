@@ -217,6 +217,7 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 // Close 是 LogRotateX 类型的 Close 方法, 用于关闭日志记录器。
 // 该方法会关闭当前打开的日志文件，释放相关资源，并停止后台goroutine。
 // 此操作是线程安全的，使用 sync.Once 防止重复调用，并通过上下文控制超时。
+// 在异常情况下确保文件句柄正确关闭，防止资源泄漏。
 //
 // 返回值:
 //   - error: 如果在关闭文件时发生错误，则返回该错误；否则返回 nil。
@@ -232,15 +233,34 @@ func (l *LogRotateX) Close() error {
 		done := make(chan error, 1)
 
 		go func() {
+			defer func() {
+				// 使用defer确保即使在panic情况下也能发送结果
+				if r := recover(); r != nil {
+					done <- fmt.Errorf("关闭操作发生panic: %v", r)
+				}
+			}()
+
 			// 停止mill goroutine
 			if l.millStarted.Load() && l.millDone != nil {
-				close(l.millDone)
+				// 使用select避免在通道已关闭时阻塞
+				select {
+				case <-l.millDone:
+					// 通道已关闭
+				default:
+					close(l.millDone)
+				}
 				l.millStarted.Store(false)
 			}
 
 			// 关闭mill通道
 			if l.millCh != nil {
-				close(l.millCh)
+				// 使用select避免在通道已关闭时阻塞
+				select {
+				case <-l.millCh:
+					// 通道已关闭
+				default:
+					close(l.millCh)
+				}
 				l.millCh = nil
 			}
 
@@ -253,7 +273,16 @@ func (l *LogRotateX) Close() error {
 		case err := <-done:
 			closeErr = err
 		case <-ctx.Done():
-			closeErr = fmt.Errorf("关闭操作被取消: %w", ctx.Err())
+			// 即使超时也要尝试强制关闭文件句柄
+			if l.file != nil {
+				l.mu.Lock()
+				if l.file != nil {
+					_ = l.file.Close() // 强制关闭，忽略错误
+					l.file = nil
+				}
+				l.mu.Unlock()
+			}
+			closeErr = fmt.Errorf("关闭操作超时: %w", ctx.Err())
 		}
 	})
 
