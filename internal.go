@@ -404,13 +404,13 @@ func (l *LogRotateX) mill() {
 		// 创建通道用于goroutine通信
 		l.millCh = make(chan bool, 1)
 		l.millDone = make(chan struct{})
-		l.millStarted = true
+		l.millStarted.Store(true)
 		// 启动一个独立的 goroutine 来执行日志文件的压缩和清理操作
 		go l.millRun()
 	})
 
 	// 如果goroutine已经停止，则不发送信号
-	if !l.millStarted {
+	if !l.millStarted.Load() {
 		return
 	}
 

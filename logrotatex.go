@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -95,8 +96,8 @@ type LogRotateX struct {
 	// startMill 是一个 sync.Once, 用于确保只启动一次压缩和删除旧日志文件的 goroutine。
 	startMill sync.Once
 
-	// millStarted 标记mill goroutine是否已启动
-	millStarted bool
+	// millStarted 标记mill goroutine是否已启动 (使用原子操作)
+	millStarted atomic.Bool
 }
 
 // Write 实现了 io.Writer 接口，用于向日志文件写入数据。
@@ -168,9 +169,9 @@ func (l *LogRotateX) Close() error {
 	defer l.mu.Unlock()
 
 	// 停止mill goroutine
-	if l.millStarted && l.millDone != nil {
+	if l.millStarted.Load() && l.millDone != nil {
 		close(l.millDone)
-		l.millStarted = false
+		l.millStarted.Store(false)
 	}
 
 	// 关闭mill通道
