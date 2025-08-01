@@ -229,7 +229,7 @@ func TestSanitizePath(t *testing.T) {
 			},
 		},
 		{
-			name:        "绝对路径保持不变",
+			name: "绝对路径保持不变",
 			path: func() string {
 				if filepath.Separator == '\\' {
 					return "C:\\temp\\app.log" // Windows绝对路径

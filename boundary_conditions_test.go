@@ -237,7 +237,7 @@ func TestBoundaryConditions(t *testing.T) {
 		oldFileName := fmt.Sprintf("test-%s.log", oldTime.Format("2006-01-02T15-04-05.000"))
 		oldFilePath := filepath.Join(dir, oldFileName)
 
-		err := os.WriteFile(oldFilePath, []byte("old log data"), 0600)
+		err := os.WriteFile(oldFilePath, []byte("old log data"), defaultFilePerm)
 		if err != nil {
 			t.Fatalf("创建旧日志文件失败: %v", err)
 		}
@@ -607,8 +607,8 @@ func TestEdgeCases(t *testing.T) {
 		if actualFilename == "" {
 			t.Error("生成的文件名不应该为空")
 		}
-		if !strings.Contains(actualFilename, "_logrotatex.log") {
-			t.Errorf("期望文件名包含'_logrotatex.log'，实际为: %s", actualFilename)
+		if !strings.Contains(actualFilename, defaultLogSuffix) {
+			t.Errorf("期望文件名包含'%s'，实际为: %s", defaultLogSuffix, actualFilename)
 		}
 	})
 

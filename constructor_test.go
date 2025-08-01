@@ -39,8 +39,8 @@ func TestNewLogRotateX(t *testing.T) {
 				if l.Compress {
 					t.Error("期望 Compress = false")
 				}
-				if l.FilePerm != 0600 {
-					t.Errorf("期望 FilePerm = 0600, 实际 = %o", l.FilePerm)
+				if l.FilePerm != defaultFilePerm {
+					t.Errorf("期望 FilePerm = %o, 实际 = %o", defaultFilePerm, l.FilePerm)
 				}
 				// 验证路径是否被正确清理
 				if !strings.HasSuffix(l.Filename, "test.log") {
@@ -173,7 +173,7 @@ func TestNewLogRotateX_DirectoryPermissions(t *testing.T) {
 
 	// 检查目录权限 (仅在Unix系统上检查精确权限)
 	if filepath.Separator != '\\' { // 非Windows系统
-		if info.Mode().Perm() != 0700 {
+		if info.Mode().Perm() != defaultDirPerm {
 			t.Errorf("期望目录权限 0700, 实际 = %o", info.Mode().Perm())
 		}
 	} else {

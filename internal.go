@@ -42,6 +42,15 @@ const (
 
 	// 128KB - 最大缓冲区，避免过度内存使用
 	maxBufferSize = 128 * 1024
+
+	// defaultLogSuffix 是默认日志文件的后缀名
+	defaultLogSuffix = "_logrotatex.log"
+
+	// defaultFilePerm 是日志文件的默认权限模式
+	defaultFilePerm = 0600
+
+	// defaultDirPerm 是日志目录的默认权限模式
+	defaultDirPerm = 0700
 )
 
 // close 是 LogRotateX 类型的实例方法, 用于安全地关闭当前打开的日志文件。
@@ -109,7 +118,7 @@ func (l *LogRotateX) rotate() error {
 func (l *LogRotateX) openNew() error {
 	// 确保日志文件所在目录存在，使用更安全的目录权限
 	// 如果目录不存在则创建，如果已存在则不执行任何操作
-	if err := os.MkdirAll(l.dir(), 0700); err != nil {
+	if err := os.MkdirAll(l.dir(), defaultDirPerm); err != nil {
 		return fmt.Errorf("logrotatex: 无法创建日志文件所需目录: %w", err)
 	}
 
@@ -120,7 +129,7 @@ func (l *LogRotateX) openNew() error {
 	mode := l.FilePerm
 	// 如果未设置FilePerm, 则使用默认值0600
 	if mode == 0 {
-		mode = os.FileMode(0600)
+		mode = os.FileMode(defaultFilePerm)
 	}
 
 	// 获取文件信息
@@ -238,7 +247,7 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	// 使用更安全的默认权限0600
 	filePerm := l.FilePerm
 	if filePerm == 0 {
-		filePerm = os.FileMode(0600) // 修复：使用更安全的默认权限
+		filePerm = os.FileMode(defaultFilePerm) // 修复：使用更安全的默认权限
 	}
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, filePerm)
 	if err != nil {
@@ -264,7 +273,7 @@ func (l *LogRotateX) filename() string {
 		return l.Filename
 	}
 	// 生成默认的日志文件名, 格式为: 程序名_logrotatex.log
-	name := filepath.Base(os.Args[0]) + "_logrotatex.log"
+	name := filepath.Base(os.Args[0]) + defaultLogSuffix
 
 	// 将日志文件存储在系统的临时目录中
 	return filepath.Join(os.TempDir(), name)

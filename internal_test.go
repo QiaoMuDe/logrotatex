@@ -125,7 +125,7 @@ func TestMaxBackups(t *testing.T) {
 	// 创建一个与日志文件过滤规则匹配的目录，该目录不应被删除过滤器捕获
 	notlogfiledir := backupFile(dir)
 	// 创建该目录，权限设置为 0700
-	err = os.Mkdir(notlogfiledir, 0700)
+	err = os.Mkdir(notlogfiledir, defaultDirPerm)
 	// 验证目录创建操作是否成功
 	isNil(err, t)
 
@@ -542,7 +542,7 @@ func TestDefaultFilename(t *testing.T) {
 	// 获取系统临时目录
 	dir := os.TempDir()
 	// 构建默认的日志文件名，格式为 程序名_logrotatex.log
-	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"_logrotatex.log")
+	filename := filepath.Join(dir, filepath.Base(os.Args[0])+defaultLogSuffix)
 	// 测试结束后删除该日志文件
 	defer func() { _ = os.Remove(filename) }()
 	// 创建一个 LogRotateX 实例，不指定文件名，使用默认配置
@@ -666,7 +666,7 @@ func TestFirstWriteRotate(t *testing.T) {
 	// 定义要写入现有文件的初始数据
 	start := []byte("boooooo!")
 	// 将初始数据写入日志文件，文件权限设置为 0600
-	err := os.WriteFile(filename, start, 0600)
+	err := os.WriteFile(filename, start, defaultFilePerm)
 	// 验证写入操作是否成功
 	isNil(err, t)
 

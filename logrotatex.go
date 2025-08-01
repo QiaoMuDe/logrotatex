@@ -133,19 +133,19 @@ func NewLogRotateX(filename string) *LogRotateX {
 
 	// 确保目录存在
 	dir := filepath.Dir(safePath)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
 		panic(fmt.Sprintf("logrotatex: 创建日志目录失败: %v", err))
 	}
 
 	// 创建 LogRotateX 实例并设置默认值
 	logger := &LogRotateX{
-		Filename:   safePath, // 日志文件路径
-		MaxSize:    10,       // 10MB
-		MaxAge:     0,        // 0天 (默认不清理历史文件)
-		MaxBackups: 0,        // 0个备份文件 (默认不清理备份文件)
-		LocalTime:  true,     // 使用本地时间
-		Compress:   false,    // 禁用压缩
-		FilePerm:   0600,     // 文件权限：所有者读写，组和其他用户只读
+		Filename:   safePath,        // 日志文件路径
+		MaxSize:    10,              // 10MB
+		MaxAge:     0,               // 0天 (默认不清理历史文件)
+		MaxBackups: 0,               // 0个备份文件 (默认不清理备份文件)
+		LocalTime:  true,            // 使用本地时间
+		Compress:   false,           // 禁用压缩
+		FilePerm:   defaultFilePerm, // 文件权限：所有者读写，组和其他用户只读
 	}
 
 	return logger

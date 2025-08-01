@@ -562,7 +562,7 @@ func makeTempDir(name string, t testing.TB) string {
 	// 将生成的目录名与系统临时目录拼接，得到完整的临时目录路径
 	dir = filepath.Join(os.TempDir(), dir)
 	// 创建该临时目录，权限设置为 0700，并验证创建操作是否成功
-	isNilUp(os.Mkdir(dir, 0700), t, 1)
+	isNilUp(os.Mkdir(dir, defaultDirPerm), t, 1)
 	return dir
 }
 
