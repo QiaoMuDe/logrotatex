@@ -110,7 +110,7 @@ func (l *LogRotateX) openNew() error {
 	// 确保日志文件所在目录存在，使用更安全的目录权限
 	// 如果目录不存在则创建，如果已存在则不执行任何操作
 	if err := os.MkdirAll(l.dir(), 0700); err != nil {
-		return fmt.Errorf("无法创建日志文件所需目录: %s", err)
+		return fmt.Errorf("logrotatex: 无法创建日志文件所需目录: %w", err)
 	}
 
 	// 获取日志文件的完整路径
@@ -132,12 +132,12 @@ func (l *LogRotateX) openNew() error {
 		// 将现有的日志文件重命名为备份文件
 		newname := backupName(name, l.LocalTime)
 		if renameErr := os.Rename(name, newname); renameErr != nil {
-			return fmt.Errorf("无法重命名日志文件: %s", renameErr)
+			return fmt.Errorf("logrotatex: 无法重命名日志文件: %w", renameErr)
 		}
 
 		// 在非 Linux 系统上, 此操作无效
 		if chownErr := chown(name, info); chownErr != nil {
-			return fmt.Errorf("无法设置文件所有者: %s", chownErr)
+			return fmt.Errorf("logrotatex: 无法设置文件所有者: %w", chownErr)
 		}
 	}
 
@@ -145,7 +145,7 @@ func (l *LogRotateX) openNew() error {
 	// 如果文件已存在（可能是其他进程创建的）, 则清空内容。
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
-		return fmt.Errorf("无法打开新的日志文件: %s", err)
+		return fmt.Errorf("logrotatex: 无法打开新的日志文件: %w", err)
 	}
 
 	l.file = f // 将打开的文件赋值给 LogRotateX 的 file 字段
@@ -229,7 +229,7 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	}
 
 	// 检查写入操作是否会超出最大文件大小限制
-	if info.Size()+int64(writeLen) >= l.max() {
+	if info.Size()+int64(writeLen) > l.max() {
 		// 如果会超出限制, 则执行日志文件的轮转操作
 		return l.rotate()
 	}
@@ -341,7 +341,7 @@ func (l *LogRotateX) millRunOnce() error {
 
 		// 移除文件
 		if err := os.Remove(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("移除日志文件 %s 失败: %w", filePath, err))
+			errors = append(errors, fmt.Errorf("logrotatex: 移除日志文件 %s 失败: %w", filePath, err))
 		}
 	}
 
@@ -354,7 +354,7 @@ func (l *LogRotateX) millRunOnce() error {
 
 		// 压缩文件
 		if err := compressLogFile(filePath, compressPath); err != nil {
-			errors = append(errors, fmt.Errorf("压缩日志文件 %s 失败: %w", filePath, err))
+			errors = append(errors, fmt.Errorf("logrotatex: 压缩日志文件 %s 失败: %w", filePath, err))
 		}
 	}
 
@@ -365,7 +365,7 @@ func (l *LogRotateX) millRunOnce() error {
 		for i, err := range errors {
 			errMsg.WriteString(fmt.Sprintf("  %d. %v\n", i+1, err))
 		}
-		return fmt.Errorf("%s", errMsg.String())
+		return fmt.Errorf("logrotatex: %s", errMsg.String())
 	}
 
 	return nil
@@ -738,10 +738,13 @@ func getBufferSize(fileSize int64) int {
 	return bufferSize
 }
 
-// logInfo 是一个便捷结构体, 用于返回文件名及其嵌入的时间戳。
+// logInfo 是一个便捷结构体，用于返回文件名及其嵌入的时间戳。
+// 它包含了日志文件的时间戳信息和文件系统信息，用于日志轮转时的文件管理。
 type logInfo struct {
-	timestamp   time.Time // 文件名中嵌入的时间戳
-	os.FileInfo           // 嵌入的 os.FileInfo 结构体
+	// timestamp 是从文件名中解析出的时间戳
+	timestamp time.Time
+	// FileInfo 包含文件的基本信息（大小、修改时间等）
+	os.FileInfo
 }
 
 // byFormatTime 是一个自定义的排序类型, 用于按文件名中格式化的时间对日志文件进行排序。

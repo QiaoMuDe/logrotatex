@@ -31,6 +31,14 @@ func fakeTime() time.Time {
 }
 
 func TestNewFile(t *testing.T) {
+	// 保存原始值
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		currentTime = originalCurrentTime
+	}()
+
 	currentTime = fakeTime
 
 	dir := makeTempDir("TestNewFile", t)
@@ -89,6 +97,14 @@ func TestMain(m *testing.M) {
 // TestOpenExisting 测试当 LogRotateX 实例打开一个已存在的日志文件时的行为。
 // 预期结果是新写入的数据会追加到现有文件内容之后，且不会创建新的文件。
 func TestOpenExisting(t *testing.T) {
+	// 保存原始值
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 创建一个临时目录用于测试，目录名包含测试名称
@@ -132,6 +148,16 @@ func TestOpenExisting(t *testing.T) {
 // TestWriteTooLong 测试当写入的数据长度超过日志文件最大大小时的行为。
 // 预期结果是写入操作成功，数据被完整写入新文件，不会丢失任何日志数据。
 func TestWriteTooLong(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -169,6 +195,14 @@ func TestWriteTooLong(t *testing.T) {
 
 // TestMakeLogDir 测试 LogRotateX 在日志目录不存在时，是否能正确创建目录并写入日志文件。
 func TestMakeLogDir(t *testing.T) {
+	// 保存原始值
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 生成一个包含测试名称和当前时间格式的目录名
@@ -202,6 +236,14 @@ func TestMakeLogDir(t *testing.T) {
 // TestRotate 测试 LogRotateX 的日志轮转功能。
 // 预期结果是在多次触发日志轮转后，备份文件的数量符合最大备份数限制，且主日志文件包含最新写入的数据。
 func TestRotate(t *testing.T) {
+	// 保存原始值
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 创建一个临时目录用于测试，目录名包含测试名称
@@ -289,6 +331,16 @@ func TestRotate(t *testing.T) {
 // TestCompressOnRotate 测试 LogRotateX 在日志轮转时的压缩功能。
 // 预期结果是在触发日志轮转后，旧的日志文件被压缩，原始文件被移除，且压缩文件的内容与原始文件一致。
 func TestCompressOnRotate(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -374,6 +426,16 @@ func TestCompressOnRotate(t *testing.T) {
 // 该测试会创建一个备份文件和一个空的压缩文件，然后写入新数据，
 // 验证日志文件是否被正确压缩，并且原始文件是否被删除。
 func TestCompressOnResume(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -573,6 +635,16 @@ func exists(path string, t testing.TB) {
 
 // TestLogRunInfo 测试日志轮转的完整功能，通过写入日志触发自动轮转
 func TestLogRunInfo(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 设置为1方便测试
 	megabyte = 1
 

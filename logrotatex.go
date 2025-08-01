@@ -101,7 +101,6 @@ type LogRotateX struct {
 
 // Write 实现了 io.Writer 接口，用于向日志文件写入数据。
 // 该方法会处理日志轮转逻辑，确保单个日志文件不会超过设定的最大大小。
-// 如果写入的数据量超过当前文件剩余空间，会将数据拆分并写入当前文件和新文件。
 //
 // 参数:
 //   - p []byte: 要写入的日志数据
@@ -129,6 +128,7 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 		if err := l.rotate(); err != nil {
 			return 0, err
 		}
+
 		// 轮转后必须重新确保文件打开
 		if err = l.openExistingOrNew(len(p)); err != nil {
 			return 0, err

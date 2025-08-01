@@ -11,6 +11,16 @@ import (
 // 该测试会多次写入数据触发日志轮转，验证备份文件数量是否符合最大备份数限制，
 // 同时验证非日志文件和目录不会被误删。
 func TestMaxBackups(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -173,11 +183,20 @@ func TestCleanupExistingBackups(t *testing.T) {
 	// test that if we start with more backup files than we're supposed to have
 	// in total, that extra ones get cleaned up when we rotate.
 
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
-
 	// 创建一个临时目录用于测试，目录名包含测试名称
 	dir := makeTempDir("TestCleanupExistingBackups", t)
 	// 测试结束后删除临时目录
@@ -249,6 +268,16 @@ func TestCleanupExistingBackups(t *testing.T) {
 
 // TestMaxAge 测试备份文件最大保留天数的功能
 func TestMaxAge(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	currentTime = fakeTime
 	// 设置 1 兆字节的大小
 	megabyte = 1
@@ -337,6 +366,16 @@ func TestMaxAge(t *testing.T) {
 
 // TestOldLogFiles 测试获取旧日志文件列表的功能，验证返回的旧日志文件列表是否按时间排序。
 func TestOldLogFiles(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -430,6 +469,16 @@ func TestTimeFromName(t *testing.T) {
 // TestLocalTime 测试 LogRotateX 在启用 LocalTime 选项时的行为。
 // 预期结果是在写入数据并触发日志轮转后，主日志文件包含最新写入的数据，备份文件包含旧的数据，且备份文件的时间戳使用本地时间。
 func TestLocalTime(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -476,8 +525,20 @@ func TestLocalTime(t *testing.T) {
 // 该测试会创建一个 LogRotateX 实例，不指定文件名，期望其使用默认文件名。
 // 然后向该实例写入数据，并验证写入操作是否成功，以及文件内容是否正确。
 func TestDefaultFilename(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
+	// 设置 megabyte 变量的值为 1
+	megabyte = 1
 	// 获取系统临时目录
 	dir := os.TempDir()
 	// 构建默认的日志文件名，格式为 程序名_logrotatex.log
@@ -504,6 +565,16 @@ func TestDefaultFilename(t *testing.T) {
 // TestAutoRotate 测试日志自动轮转功能。当写入的数据使得日志文件达到最大大小时，
 // 旧的日志文件应该被移动到备份文件，并且主日志文件应该只包含最后一次写入的数据。
 func TestAutoRotate(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
@@ -563,6 +634,16 @@ func TestAutoRotate(t *testing.T) {
 // 该测试会先向日志文件写入初始数据，然后模拟时间流逝，
 // 再写入新数据，验证是否触发日志轮转，旧日志是否被备份。
 func TestFirstWriteRotate(t *testing.T) {
+	// 保存原始值
+	originalMegabyte := megabyte
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		megabyte = originalMegabyte
+		currentTime = originalCurrentTime
+	}()
+
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1

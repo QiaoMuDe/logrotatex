@@ -1,0 +1,700 @@
+package logrotatex
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+// TestBoundaryConditions 测试各种边界条件
+func TestBoundaryConditions(t *testing.T) {
+	t.Run("零字节写入", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestBoundaryConditions_ZeroWrite", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 写入零字节
+		n, err := l.Write([]byte{})
+		if err != nil {
+			t.Fatalf("写入零字节失败: %v", err)
+		}
+		if n != 0 {
+			t.Errorf("期望写入0字节，实际写入%d字节", n)
+		}
+	})
+
+	t.Run("单字节写入", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestBoundaryConditions_SingleByte", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 写入单字节
+		n, err := l.Write([]byte("a"))
+		if err != nil {
+			t.Fatalf("写入单字节失败: %v", err)
+		}
+		if n != 1 {
+			t.Errorf("期望写入1字节，实际写入%d字节", n)
+		}
+	})
+
+	t.Run("恰好达到最大大小", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestBoundaryConditions_ExactMaxSize", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    1, // 1MB = 1048576 bytes
+			MaxBackups: 1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 写入恰好1MB的数据
+		data := make([]byte, megabyte)
+		for i := range data {
+			data[i] = 'a'
+		}
+
+		n, err := l.Write(data)
+		if err != nil {
+			t.Fatalf("写入1MB数据失败: %v", err)
+		}
+		if n != megabyte {
+			t.Errorf("期望写入%d字节，实际写入%d字节", megabyte, n)
+		}
+
+		// 再写入一个字节，应该触发轮转
+		n, err = l.Write([]byte("b"))
+		if err != nil {
+			t.Fatalf("写入触发轮转的字节失败: %v", err)
+		}
+		if n != 1 {
+			t.Errorf("期望写入1字节，实际写入%d字节", n)
+		}
+
+		// 检查是否创建了备份文件
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("读取目录失败: %v", err)
+		}
+
+		backupCount := 0
+		for _, file := range files {
+			if strings.Contains(file.Name(), "2025-") {
+				backupCount++
+			}
+		}
+
+		if backupCount != 1 {
+			t.Errorf("期望1个备份文件，实际找到%d个", backupCount)
+		}
+	})
+
+	t.Run("超大单次写入", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestBoundaryConditions_LargeWrite", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    1, // 1MB
+			MaxBackups: 2,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 写入5MB的数据，应该触发多次轮转
+		data := make([]byte, 5*megabyte)
+		for i := range data {
+			data[i] = byte('a' + (i % 26))
+		}
+
+		n, err := l.Write(data)
+		if err != nil {
+			t.Fatalf("写入5MB数据失败: %v", err)
+		}
+		if n != 5*megabyte {
+			t.Errorf("期望写入%d字节，实际写入%d字节", 5*megabyte, n)
+		}
+	})
+
+	t.Run("MaxBackups为0", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestBoundaryConditions_MaxBackupsZero", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    1, // 1MB
+			MaxBackups: 0, // 不限制备份数量
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 写入多次，每次1MB，触发多次轮转
+		data := make([]byte, megabyte)
+		for i := range data {
+			data[i] = 'a'
+		}
+
+		for i := 0; i < 3; i++ {
+			_, err := l.Write(data)
+			if err != nil {
+				t.Fatalf("第%d次写入失败: %v", i+1, err)
+			}
+		}
+
+		// 检查所有备份文件都被保留
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("读取目录失败: %v", err)
+		}
+
+		backupCount := 0
+		for _, file := range files {
+			if strings.Contains(file.Name(), "2025-") {
+				backupCount++
+			}
+		}
+
+		// 应该有2个备份文件（第3次写入创建了新的当前文件）
+		if backupCount < 2 {
+			t.Errorf("期望至少2个备份文件，实际找到%d个", backupCount)
+		}
+	})
+
+	t.Run("MaxAge为0", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestBoundaryConditions_MaxAgeZero", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+			MaxAge:   0, // 不限制文件年龄
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 创建一些旧的日志文件
+		oldTime := time.Now().AddDate(0, 0, -10) // 10天前
+		oldFileName := fmt.Sprintf("test-%s.log", oldTime.Format("2006-01-02T15-04-05.000"))
+		oldFilePath := filepath.Join(dir, oldFileName)
+
+		err := os.WriteFile(oldFilePath, []byte("old log data"), 0600)
+		if err != nil {
+			t.Fatalf("创建旧日志文件失败: %v", err)
+		}
+
+		// 写入数据触发轮转
+		data := make([]byte, megabyte+1)
+		_, err = l.Write(data)
+		if err != nil {
+			t.Fatalf("写入数据失败: %v", err)
+		}
+
+		// 检查旧文件是否仍然存在（因为MaxAge=0）
+		if _, err := os.Stat(oldFilePath); os.IsNotExist(err) {
+			t.Error("旧日志文件不应该被删除（MaxAge=0）")
+		}
+	})
+}
+
+// TestErrorPaths 测试各种错误路径
+func TestErrorPaths(t *testing.T) {
+	t.Run("无效文件路径", func(t *testing.T) {
+		// 使用一个确实无效的路径（在Windows和Unix上都无效）
+		invalidPath := filepath.Join("Z:", "nonexistent", "invalid", "path", "test.log")
+		l := &LogRotateX{
+			Filename: invalidPath,
+			MaxSize:  1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		_, err := l.Write([]byte("test"))
+		if err == nil {
+			t.Error("期望写入无效路径时返回错误")
+		}
+	})
+
+	t.Run("只读目录", func(t *testing.T) {
+		// 在Windows上跳过此测试，因为权限模型不同
+		if filepath.Separator == '\\' {
+			t.Skip("跳过Windows上的权限测试")
+		}
+
+		if os.Getuid() == 0 {
+			t.Skip("跳过root用户的权限测试")
+		}
+
+		dir := makeBoundaryTempDir("TestErrorPaths_ReadOnlyDir", t)
+		defer func() {
+			// 确保在清理前恢复权限
+			if err := os.Chmod(dir, 0755); err != nil {
+				t.Logf("恢复目录权限失败: %v", err)
+			}
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		// 设置目录为只读
+		err := os.Chmod(dir, 0444)
+		if err != nil {
+			t.Fatalf("设置目录权限失败: %v", err)
+		}
+
+		l := &LogRotateX{
+			Filename: filepath.Join(dir, "test.log"),
+			MaxSize:  1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		_, err = l.Write([]byte("test"))
+		if err == nil {
+			t.Error("期望在只读目录中写入时返回错误")
+		}
+	})
+
+	t.Run("文件被外部删除", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestErrorPaths_FileDeleted", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 先写入一些数据
+		_, err := l.Write([]byte("initial data"))
+		if err != nil {
+			t.Fatalf("初始写入失败: %v", err)
+		}
+
+		// 关闭文件以释放文件句柄
+		err = l.Close()
+		if err != nil {
+			t.Fatalf("关闭文件失败: %v", err)
+		}
+
+		// 外部删除文件
+		err = os.Remove(l.Filename)
+		if err != nil {
+			t.Fatalf("删除文件失败: %v", err)
+		}
+
+		// 再次写入，应该能够重新创建文件
+		_, err = l.Write([]byte("after deletion"))
+		if err != nil {
+			t.Fatalf("文件被删除后写入失败: %v", err)
+		}
+
+		// 检查文件是否重新创建
+		if _, err := os.Stat(l.Filename); os.IsNotExist(err) {
+			t.Error("文件应该被重新创建")
+		}
+	})
+
+	t.Run("磁盘空间不足模拟", func(t *testing.T) {
+		// 这个测试很难在真实环境中模拟，我们只是确保大量写入不会崩溃
+		dir := makeBoundaryTempDir("TestErrorPaths_DiskSpace", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    1,
+			MaxBackups: 1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		// 尝试写入大量数据
+		largeData := make([]byte, 10*megabyte)
+		for i := range largeData {
+			largeData[i] = 'x'
+		}
+
+		_, err := l.Write(largeData)
+		// 我们不期望特定的错误，只是确保不会panic
+		if err != nil {
+			t.Logf("大量写入返回错误（这是可以接受的）: %v", err)
+		}
+	})
+}
+
+// TestConcurrentScenarios 测试并发场景
+func TestConcurrentScenarios(t *testing.T) {
+	t.Run("多goroutine并发写入", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestConcurrentScenarios_MultiWrite", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    1, // 1MB
+			MaxBackups: 5,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		const numGoroutines = 10
+		const writesPerGoroutine = 100
+		var wg sync.WaitGroup
+
+		// 启动多个goroutine并发写入
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				for j := 0; j < writesPerGoroutine; j++ {
+					data := fmt.Sprintf("goroutine-%d-write-%d: %s\n",
+						id, j, strings.Repeat("data", 100))
+					_, err := l.Write([]byte(data))
+					if err != nil {
+						t.Errorf("goroutine %d 写入 %d 失败: %v", id, j, err)
+						return
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
+
+		// 确保所有数据都被刷新到磁盘
+		err := l.Close()
+		if err != nil {
+			t.Fatalf("关闭日志文件失败: %v", err)
+		}
+
+		// 验证所有数据都被写入
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("读取目录失败: %v", err)
+		}
+
+		totalSize := int64(0)
+		for _, file := range files {
+			if !file.IsDir() {
+				info, err := file.Info()
+				if err != nil {
+					continue
+				}
+				totalSize += info.Size()
+			}
+		}
+
+		expectedMinSize := int64(numGoroutines * writesPerGoroutine * 100) // 大致估算
+		if totalSize < expectedMinSize {
+			t.Errorf("总文件大小 %d 小于期望的最小值 %d", totalSize, expectedMinSize)
+		}
+	})
+
+	t.Run("并发写入和轮转", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestConcurrentScenarios_WriteAndRotate", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    1, // 1MB
+			MaxBackups: 3,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		var wg sync.WaitGroup
+		stopCh := make(chan struct{})
+
+		// 启动写入goroutine
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			counter := 0
+			for {
+				select {
+				case <-stopCh:
+					return
+				default:
+					data := fmt.Sprintf("continuous-write-%d: %s\n",
+						counter, strings.Repeat("x", 1000))
+					_, _ = l.Write([]byte(data))
+					counter++
+					time.Sleep(time.Millisecond)
+				}
+			}
+		}()
+
+		// 启动手动轮转goroutine
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 5; i++ {
+				time.Sleep(100 * time.Millisecond)
+				err := l.Rotate()
+				if err != nil {
+					t.Errorf("手动轮转失败: %v", err)
+				}
+			}
+		}()
+
+		// 运行2秒后停止
+		time.Sleep(2 * time.Second)
+		close(stopCh)
+		wg.Wait()
+
+		// 验证文件系统状态
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("读取目录失败: %v", err)
+		}
+
+		if len(files) == 0 {
+			t.Error("应该至少有一个日志文件")
+		}
+	})
+
+	t.Run("并发关闭", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestConcurrentScenarios_ConcurrentClose", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1,
+		}
+
+		var wg sync.WaitGroup
+		const numClosers = 5
+
+		// 启动多个goroutine同时关闭
+		for i := 0; i < numClosers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err := l.Close()
+				if err != nil {
+					t.Errorf("关闭失败: %v", err)
+				}
+			}()
+		}
+
+		wg.Wait()
+		// 测试通过意味着没有panic或死锁
+	})
+}
+
+// TestEdgeCases 测试边缘情况
+func TestEdgeCases(t *testing.T) {
+	t.Run("空文件名", func(t *testing.T) {
+		l := &LogRotateX{
+			Filename: "", // 空文件名，应该使用默认值
+			MaxSize:  1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		_, err := l.Write([]byte("test"))
+		if err != nil {
+			t.Fatalf("空文件名写入失败: %v", err)
+		}
+
+		// 检查是否生成了默认文件名（通过filename()方法）
+		actualFilename := l.filename()
+		if actualFilename == "" {
+			t.Error("生成的文件名不应该为空")
+		}
+		if !strings.Contains(actualFilename, "_logrotatex.log") {
+			t.Errorf("期望文件名包含'_logrotatex.log'，实际为: %s", actualFilename)
+		}
+	})
+
+	t.Run("负数配置值", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestEdgeCases_NegativeValues", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    -1, // 负数，应该使用默认值
+			MaxBackups: -1, // 负数
+			MaxAge:     -1, // 负数
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		_, err := l.Write([]byte("test with negative values"))
+		if err != nil {
+			t.Fatalf("负数配置写入失败: %v", err)
+		}
+	})
+
+	t.Run("极大配置值", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestEdgeCases_LargeValues", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		l := &LogRotateX{
+			Filename:   boundaryLogFile(dir),
+			MaxSize:    999999, // 极大值
+			MaxBackups: 999999, // 极大值
+			MaxAge:     999999, // 极大值
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		_, err := l.Write([]byte("test with large values"))
+		if err != nil {
+			t.Fatalf("极大配置值写入失败: %v", err)
+		}
+	})
+
+	t.Run("特殊字符文件名", func(t *testing.T) {
+		dir := makeBoundaryTempDir("TestEdgeCases_SpecialChars", t)
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Logf("清理临时目录失败: %v", err)
+			}
+		}()
+
+		// 在Windows上某些字符是不允许的，所以我们使用相对安全的特殊字符
+		specialName := "test-log_file.2025.log"
+
+		l := &LogRotateX{
+			Filename: filepath.Join(dir, specialName),
+			MaxSize:  1,
+		}
+		defer func() {
+			if err := l.Close(); err != nil {
+				t.Logf("关闭日志文件失败: %v", err)
+			}
+		}()
+
+		_, err := l.Write([]byte("test with special chars"))
+		if err != nil {
+			t.Fatalf("特殊字符文件名写入失败: %v", err)
+		}
+	})
+}
+
+// 辅助函数
+func makeBoundaryTempDir(name string, t *testing.T) string {
+	dir, err := os.MkdirTemp("", name)
+	if err != nil {
+		t.Fatalf("创建临时目录失败: %v", err)
+	}
+	return dir
+}
+
+func boundaryLogFile(dir string) string {
+	return filepath.Join(dir, "test.log")
+}
