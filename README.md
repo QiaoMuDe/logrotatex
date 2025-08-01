@@ -309,7 +309,7 @@ func monitorLogFile(logger *logrotatex.LogRotateX) {
     for range ticker.C {
         currentSize := logger.GetCurrentSize()
         maxSize := logger.GetMaxSize()
-      
+    
         // 当文件大小接近限制时发出告警
         if float64(currentSize)/float64(maxSize) > 0.8 {
             log.Printf("警告: 日志文件大小接近限制 (%d/%d)", currentSize, maxSize)
