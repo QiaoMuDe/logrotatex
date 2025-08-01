@@ -45,7 +45,7 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	// 写入少量数据，不触发轮转
 	testData := "这是一条测试日志消息\n"
 	for i := 0; i < 10; i++ {
-		_, err := logger.Write([]byte(fmt.Sprintf("%s第%d条消息\n", testData, i)))
+		_, err := fmt.Fprintf(logger, "%s第%d条消息\n", testData, i)
 		if err != nil {
 			t.Fatalf("写入日志失败: %v", err)
 		}
@@ -234,7 +234,7 @@ func TestComprehensiveLogRotation(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 5; i++ {
-			_, err := logger.Write([]byte(fmt.Sprintf("goroutine1-消息%d\n", i)))
+			_, err := fmt.Fprintf(logger, "goroutine1-消息%d\n", i)
 			if err != nil {
 				t.Errorf("并发写入1失败: %v", err)
 			}
@@ -244,7 +244,7 @@ func TestComprehensiveLogRotation(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 5; i++ {
-			_, err := logger.Write([]byte(fmt.Sprintf("goroutine2-消息%d\n", i)))
+			_, err := fmt.Fprintf(logger, "goroutine2-消息%d\n", i)
 			if err != nil {
 				t.Errorf("并发写入2失败: %v", err)
 			}
