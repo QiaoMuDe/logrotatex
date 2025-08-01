@@ -9,8 +9,13 @@ import (
 
 // TestNewLogRotateX 测试 NewLogRotateX 构造函数
 func TestNewLogRotateX(t *testing.T) {
-	// 创建临时目录用于测试
-	tempDir := t.TempDir()
+	// 创建logs目录用于测试
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
 
 	tests := []struct {
 		name        string
@@ -21,7 +26,7 @@ func TestNewLogRotateX(t *testing.T) {
 	}{
 		{
 			name:        "正常路径创建成功",
-			filename:    filepath.Join(tempDir, "test.log"),
+			filename:    filepath.Join(logsDir, "test.log"),
 			shouldPanic: false,
 			checkFunc: func(l *LogRotateX) {
 				if l.MaxSize != 10 {
@@ -64,7 +69,7 @@ func TestNewLogRotateX(t *testing.T) {
 		},
 		{
 			name:        "嵌套目录自动创建",
-			filename:    filepath.Join(tempDir, "deep", "nested", "dir", "test.log"),
+			filename:    filepath.Join(logsDir, "deep", "nested", "dir", "test.log"),
 			shouldPanic: false,
 			checkFunc: func(l *LogRotateX) {
 				// 验证目录是否被创建
@@ -134,13 +139,9 @@ func TestNewLogRotateX(t *testing.T) {
 				}
 
 				// 清理测试文件
-				if logger.file != nil {
-					if err := logger.file.Close(); err != nil {
-						t.Logf("关闭文件失败: %v", err)
-					}
-				}
-				if err := os.Remove(logger.Filename); err != nil && !os.IsNotExist(err) {
-					t.Logf("删除文件失败: %v", err)
+				// 调用Close方法确保所有资源被释放
+				if err := logger.Close(); err != nil {
+					t.Logf("关闭logger失败: %v", err)
 				}
 			}
 		})
@@ -149,18 +150,19 @@ func TestNewLogRotateX(t *testing.T) {
 
 // TestNewLogRotateX_DirectoryPermissions 测试目录权限
 func TestNewLogRotateX_DirectoryPermissions(t *testing.T) {
-	tempDir := t.TempDir()
-	testPath := filepath.Join(tempDir, "subdir", "test.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	testPath := filepath.Join(logsDir, "subdir", "test.log")
 
 	logger := NewLogRotateX(testPath)
 	defer func() {
-		if logger.file != nil {
-			if err := logger.file.Close(); err != nil {
-				t.Logf("关闭文件失败: %v", err)
-			}
-		}
-		if err := os.Remove(logger.Filename); err != nil && !os.IsNotExist(err) {
-			t.Logf("删除文件失败: %v", err)
+		// 调用Close方法确保所有资源被释放
+		if err := logger.Close(); err != nil {
+			t.Logf("关闭logger失败: %v", err)
 		}
 	}()
 
@@ -186,7 +188,12 @@ func TestNewLogRotateX_DirectoryPermissions(t *testing.T) {
 
 // TestNewLogRotateX_PathCleaning 测试路径清理功能
 func TestNewLogRotateX_PathCleaning(t *testing.T) {
-	tempDir := t.TempDir()
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
 
 	tests := []struct {
 		name     string
@@ -195,17 +202,17 @@ func TestNewLogRotateX_PathCleaning(t *testing.T) {
 	}{
 		{
 			name:     "多余斜杠清理",
-			input:    filepath.Join(tempDir, "logs//app.log"),
+			input:    filepath.Join(logsDir, "logs//app.log"),
 			expected: "logs/app.log",
 		},
 		{
 			name:     "当前目录清理",
-			input:    filepath.Join(tempDir, "logs/./app.log"),
+			input:    filepath.Join(logsDir, "logs/./app.log"),
 			expected: "logs/app.log",
 		},
 		{
 			name:     "混合路径清理",
-			input:    filepath.Join(tempDir, "logs//./app.log"),
+			input:    filepath.Join(logsDir, "logs//./app.log"),
 			expected: "logs/app.log",
 		},
 	}
@@ -214,13 +221,9 @@ func TestNewLogRotateX_PathCleaning(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := NewLogRotateX(tt.input)
 			defer func() {
-				if logger.file != nil {
-					if err := logger.file.Close(); err != nil {
-						t.Logf("关闭文件失败: %v", err)
-					}
-				}
-				if err := os.Remove(logger.Filename); err != nil && !os.IsNotExist(err) {
-					t.Logf("删除文件失败: %v", err)
+				// 调用Close方法确保所有资源被释放
+				if err := logger.Close(); err != nil {
+					t.Logf("关闭logger失败: %v", err)
 				}
 			}()
 
@@ -235,16 +238,20 @@ func TestNewLogRotateX_PathCleaning(t *testing.T) {
 
 // BenchmarkNewLogRotateX 性能基准测试
 func BenchmarkNewLogRotateX(b *testing.B) {
-	tempDir := b.TempDir()
-	testPath := filepath.Join(tempDir, "bench.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		b.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	testPath := filepath.Join(logsDir, "bench.log")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logger := NewLogRotateX(testPath)
-		if logger.file != nil {
-			if err := logger.file.Close(); err != nil {
-				b.Logf("关闭文件失败: %v", err)
-			}
+		// 调用Close方法确保所有资源被释放
+		if err := logger.Close(); err != nil {
+			b.Logf("关闭logger失败: %v", err)
 		}
 		if err := os.Remove(logger.Filename); err != nil && !os.IsNotExist(err) {
 			b.Logf("删除文件失败: %v", err)

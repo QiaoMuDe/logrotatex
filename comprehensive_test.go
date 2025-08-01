@@ -27,7 +27,11 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	currentTime = fakeTime
 
 	// 创建临时测试目录
-	dir := makeTempDir("TestComprehensiveLogRotation", t)
+	dir := "logs"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 第一阶段：测试基本写入功能

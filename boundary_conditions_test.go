@@ -322,21 +322,11 @@ func TestErrorPaths(t *testing.T) {
 
 	t.Run("文件被外部删除", func(t *testing.T) {
 		dir := makeBoundaryTempDir("TestErrorPaths_FileDeleted", t)
-		defer func() {
-			if err := os.RemoveAll(dir); err != nil {
-				t.Logf("清理临时目录失败: %v", err)
-			}
-		}()
 
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  1,
 		}
-		defer func() {
-			if err := l.Close(); err != nil {
-				t.Logf("关闭日志文件失败: %v", err)
-			}
-		}()
 
 		// 先写入一些数据
 		_, err := l.Write([]byte("initial data"))
@@ -365,6 +355,12 @@ func TestErrorPaths(t *testing.T) {
 		// 检查文件是否重新创建
 		if _, err := os.Stat(l.Filename); os.IsNotExist(err) {
 			t.Error("文件应该被重新创建")
+		}
+
+		// 最终关闭文件
+		err = l.Close()
+		if err != nil {
+			t.Logf("最终关闭日志文件失败: %v", err)
 		}
 	})
 
@@ -694,9 +690,13 @@ func TestEdgeCases(t *testing.T) {
 
 // 辅助函数
 func makeBoundaryTempDir(name string, t *testing.T) string {
-	dir, err := os.MkdirTemp("", name)
+	// 根据测试名称和当前时间生成目录名
+	dir := time.Now().Format(name + "_" + "2006-01-02T15-04-05.000")
+	// 将生成的目录名与logs目录拼接，得到完整的目录路径
+	dir = filepath.Join("logs", dir)
+	err := os.MkdirAll(dir, 0755)
 	if err != nil {
-		t.Fatalf("创建临时目录失败: %v", err)
+		t.Fatalf("创建logs目录失败: %v", err)
 	}
 	return dir
 }

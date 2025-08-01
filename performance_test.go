@@ -10,7 +10,12 @@ import (
 
 // TestFileScanning_Performance 测试文件扫描性能优化效果
 func TestFileScanning_Performance(t *testing.T) {
-	tempDir := t.TempDir()
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
 
 	// 创建大量测试文件
 	fileCount := 1000
@@ -23,25 +28,25 @@ func TestFileScanning_Performance(t *testing.T) {
 	for i := 0; i < fileCount; i++ {
 		timestamp := time.Now().Add(-time.Duration(i) * time.Hour)
 		filename := fmt.Sprintf("%s_%s%s", prefix, timestamp.Format(backupTimeFormat), ext)
-		filePath := filepath.Join(tempDir, filename)
+		filePath := filepath.Join(logsDir, filename)
 
-		file, err := os.Create(filePath)
-		if err != nil {
-			t.Fatalf("创建测试文件失败: %v", err)
+		file, createErr := os.Create(filePath)
+		if createErr != nil {
+			t.Fatalf("创建测试文件失败: %v", createErr)
 		}
-		if _, err := fmt.Fprintf(file, "测试数据 %d", i); err != nil {
+		if _, writeErr := fmt.Fprintf(file, "测试数据 %d", i); writeErr != nil {
 			if closeErr := file.Close(); closeErr != nil {
 				t.Logf("关闭文件时出错: %v", closeErr)
 			}
-			t.Fatalf("写入测试文件失败: %v", err)
+			t.Fatalf("写入测试文件失败: %v", writeErr)
 		}
-		if err := file.Close(); err != nil {
-			t.Fatalf("关闭测试文件失败: %v", err)
+		if closeErr := file.Close(); closeErr != nil {
+			t.Fatalf("关闭测试文件失败: %v", closeErr)
 		}
 	}
 
 	// 创建LogRotateX实例
-	logPath := filepath.Join(tempDir, "app.log")
+	logPath := filepath.Join(logsDir, "app.log")
 	logger := &LogRotateX{
 		Filename:   logPath,
 		MaxSize:    1,
@@ -83,8 +88,13 @@ func TestFileScanning_Performance(t *testing.T) {
 
 // TestGoroutineLifecycle_Management 测试Goroutine生命周期管理
 func TestGoroutineLifecycle_Management(t *testing.T) {
-	tempDir := t.TempDir()
-	logPath := filepath.Join(tempDir, "lifecycle_test.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logPath := filepath.Join(logsDir, "lifecycle_test.log")
 
 	t.Run("Goroutine正确启动和关闭", func(t *testing.T) {
 		logger := NewLogRotateX(logPath)

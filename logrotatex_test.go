@@ -207,8 +207,8 @@ func TestMakeLogDir(t *testing.T) {
 	currentTime = fakeTime
 	// 生成一个包含测试名称和当前时间格式的目录名
 	dir := time.Now().Format("TestMakeLogDir" + backupTimeFormat)
-	// 将生成的目录名与系统临时目录拼接，得到完整的临时目录路径
-	dir = filepath.Join(os.TempDir(), dir)
+	// 将生成的目录名与logs目录拼接，得到完整的目录路径
+	dir = filepath.Join("logs", dir)
 	// 测试结束后，删除该临时目录及其所有内容
 	defer func() { _ = os.RemoveAll(dir) }()
 	// 获取临时目录下日志文件的完整路径
@@ -554,15 +554,15 @@ func TestJson(t *testing.T) {
 	equals(true, l.Compress, t)
 }
 
-// makeTempDir 创建一个在操作系统临时目录下具有半唯一名称的目录。
+// makeTempDir 创建一个在当前目录下logs子目录中具有半唯一名称的目录。
 // 该目录名基于测试名称生成，以避免并行测试之间的冲突，并且在测试结束后必须被清理。
 func makeTempDir(name string, t testing.TB) string {
 	// 根据测试名称和当前时间生成目录名
 	dir := time.Now().Format(name + backupTimeFormat)
-	// 将生成的目录名与系统临时目录拼接，得到完整的临时目录路径
-	dir = filepath.Join(os.TempDir(), dir)
-	// 创建该临时目录，权限设置为 0700，并验证创建操作是否成功
-	isNilUp(os.Mkdir(dir, defaultDirPerm), t, 1)
+	// 将生成的目录名与logs目录拼接，得到完整的目录路径
+	dir = filepath.Join("logs", dir)
+	// 创建该目录，权限设置为 0700，并验证创建操作是否成功
+	isNilUp(os.MkdirAll(dir, defaultDirPerm), t, 1)
 	return dir
 }
 

@@ -13,9 +13,14 @@ import (
 
 // TestFileHandleLeakPrevention 测试文件句柄泄漏预防机制
 func TestFileHandleLeakPrevention(t *testing.T) {
-	// 创建临时目录
-	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "test_leak.log")
+	// 创建logs目录
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logFile := filepath.Join(logsDir, "test_leak.log")
 
 	// 获取初始文件描述符数量
 	initialFDs := getOpenFileDescriptors()
@@ -47,9 +52,9 @@ func TestFileHandleLeakPrevention(t *testing.T) {
 	}
 
 	// 关闭logger
-	err := logger.Close()
-	if err != nil {
-		t.Fatalf("关闭失败: %v", err)
+	closeErr := logger.Close()
+	if closeErr != nil {
+		t.Fatalf("关闭失败: %v", closeErr)
 	}
 
 	// 强制垃圾回收
@@ -71,8 +76,13 @@ func TestFileHandleLeakPrevention(t *testing.T) {
 
 // TestConcurrentFileHandleManagement 测试并发环境下的文件句柄管理
 func TestConcurrentFileHandleManagement(t *testing.T) {
-	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "test_concurrent.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logFile := filepath.Join(logsDir, "test_concurrent.log")
 
 	logger := &LogRotateX{
 		Filename:   logFile,
@@ -112,16 +122,21 @@ func TestConcurrentFileHandleManagement(t *testing.T) {
 	wg.Wait()
 
 	// 关闭logger
-	err := logger.Close()
-	if err != nil {
-		t.Fatalf("并发测试后关闭失败: %v", err)
+	closeErr := logger.Close()
+	if closeErr != nil {
+		t.Fatalf("并发测试后关闭失败: %v", closeErr)
 	}
 }
 
 // TestErrorHandlingInFileOperations 测试文件操作中的错误处理
 func TestErrorHandlingInFileOperations(t *testing.T) {
-	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "test_error.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logFile := filepath.Join(logsDir, "test_error.log")
 
 	logger := &LogRotateX{
 		Filename:   logFile,
@@ -133,16 +148,16 @@ func TestErrorHandlingInFileOperations(t *testing.T) {
 	}
 
 	// 正常写入
-	_, err := logger.Write([]byte("正常数据\n"))
-	if err != nil {
-		t.Fatalf("正常写入失败: %v", err)
+	_, writeErr := logger.Write([]byte("正常数据\n"))
+	if writeErr != nil {
+		t.Fatalf("正常写入失败: %v", writeErr)
 	}
 
 	// 模拟文件权限问题（在某些系统上可能不起作用）
 	if runtime.GOOS != "windows" {
 		// 更改目录权限使其不可写
-		err = os.Chmod(tempDir, 0444)
-		if err == nil {
+		chmodErr := os.Chmod(logsDir, 0444)
+		if chmodErr == nil {
 			// 尝试轮转（应该失败但不应该泄漏文件句柄）
 			rotateErr := logger.Rotate()
 			if rotateErr == nil {
@@ -150,7 +165,7 @@ func TestErrorHandlingInFileOperations(t *testing.T) {
 			}
 
 			// 恢复权限
-			_ = os.Chmod(tempDir, 0755)
+			_ = os.Chmod(logsDir, 0755)
 		}
 	}
 
@@ -163,8 +178,13 @@ func TestErrorHandlingInFileOperations(t *testing.T) {
 
 // TestMultipleCloseOperations 测试多次关闭操作
 func TestMultipleCloseOperations(t *testing.T) {
-	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "test_multiple_close.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logFile := filepath.Join(logsDir, "test_multiple_close.log")
 
 	logger := &LogRotateX{
 		Filename:   logFile,
@@ -176,9 +196,9 @@ func TestMultipleCloseOperations(t *testing.T) {
 	}
 
 	// 写入一些数据
-	_, err := logger.Write([]byte("测试数据\n"))
-	if err != nil {
-		t.Fatalf("写入失败: %v", err)
+	_, writeErr := logger.Write([]byte("测试数据\n"))
+	if writeErr != nil {
+		t.Fatalf("写入失败: %v", writeErr)
 	}
 
 	// 多次关闭应该是安全的
@@ -209,8 +229,13 @@ func getOpenFileDescriptors() int {
 
 // BenchmarkFileHandleManagement 基准测试文件句柄管理性能
 func BenchmarkFileHandleManagement(b *testing.B) {
-	tempDir := b.TempDir()
-	logFile := filepath.Join(tempDir, "bench_handle.log")
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		b.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logFile := filepath.Join(logsDir, "bench_handle.log")
 
 	logger := &LogRotateX{
 		Filename:   logFile,
@@ -225,9 +250,9 @@ func BenchmarkFileHandleManagement(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := logger.Write(data)
-		if err != nil {
-			b.Fatalf("基准测试写入失败: %v", err)
+		_, writeErr := logger.Write(data)
+		if writeErr != nil {
+			b.Fatalf("基准测试写入失败: %v", writeErr)
 		}
 
 		// 每1000次写入执行一次轮转
@@ -236,8 +261,8 @@ func BenchmarkFileHandleManagement(b *testing.B) {
 		}
 	}
 
-	err := logger.Close()
-	if err != nil {
-		b.Fatalf("基准测试关闭失败: %v", err)
+	closeErr := logger.Close()
+	if closeErr != nil {
+		b.Fatalf("基准测试关闭失败: %v", closeErr)
 	}
 }

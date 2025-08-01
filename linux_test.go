@@ -16,8 +16,12 @@ func TestMaintainMode(t *testing.T) {
 		currentTime = originalCurrentTime
 	}()
 	currentTime = fakeTime
-	dir := makeTempDir("TestMaintainMode", t)
-	defer os.RemoveAll(dir)
+	dir := "logs"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	filename := logFile(dir)
 
@@ -62,8 +66,12 @@ func TestMaintainOwner(t *testing.T) {
 		currentTime = originalCurrentTime
 	}()
 	currentTime = fakeTime
-	dir := makeTempDir("TestMaintainOwner", t)
-	defer os.RemoveAll(dir)
+	dir := "logs"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	filename := logFile(dir)
 
@@ -98,8 +106,12 @@ func TestCompressMaintainMode(t *testing.T) {
 	}()
 	currentTime = fakeTime
 
-	dir := makeTempDir("TestCompressMaintainMode", t)
-	defer os.RemoveAll(dir)
+	dir := "logs"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	filename := logFile(dir)
 
@@ -151,8 +163,12 @@ func TestCompressMaintainOwner(t *testing.T) {
 		currentTime = originalCurrentTime
 	}()
 	currentTime = fakeTime
-	dir := makeTempDir("TestCompressMaintainOwner", t)
-	defer os.RemoveAll(dir)
+	dir := "logs"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	filename := logFile(dir)
 

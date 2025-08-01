@@ -25,10 +25,12 @@ func TestMaxBackups(t *testing.T) {
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
-	// 创建一个临时目录用于测试，目录名包含测试名称
-	dir := makeTempDir("TestMaxBackups", t)
-
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestMaxBackups")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 获取临时目录下日志文件的完整路径
@@ -197,9 +199,12 @@ func TestCleanupExistingBackups(t *testing.T) {
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
-	// 创建一个临时目录用于测试，目录名包含测试名称
-	dir := makeTempDir("TestCleanupExistingBackups", t)
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestCleanupExistingBackups")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 创建 3 个备份文件
@@ -207,7 +212,7 @@ func TestCleanupExistingBackups(t *testing.T) {
 	// 获取第一个备份文件路径
 	backup := backupFile(dir)
 	// 将数据写入第一个备份文件
-	err := os.WriteFile(backup, data, 0644)
+	err = os.WriteFile(backup, data, 0644)
 	// 验证写入操作是否成功
 	isNil(err, t)
 
@@ -282,9 +287,12 @@ func TestMaxAge(t *testing.T) {
 	// 设置 1 兆字节的大小
 	megabyte = 1
 
-	// 创建一个临时目录用于测试
-	dir := makeTempDir("TestMaxAge", t)
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestMaxAge")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 获取日志文件的完整路径
@@ -381,9 +389,12 @@ func TestOldLogFiles(t *testing.T) {
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
 
-	// 创建一个临时目录用于测试，目录名包含测试名称
-	dir := makeTempDir("TestOldLogFiles", t)
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestOldLogFiles")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 获取临时目录下日志文件的完整路径
@@ -391,7 +402,7 @@ func TestOldLogFiles(t *testing.T) {
 	// 定义要写入文件的数据
 	data := []byte("data")
 	// 将数据写入日志文件
-	err := os.WriteFile(filename, data, 07)
+	err = os.WriteFile(filename, data, 07)
 	// 验证写入操作是否成功
 	isNil(err, t)
 
@@ -484,9 +495,12 @@ func TestLocalTime(t *testing.T) {
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
 
-	// 创建一个临时目录用于测试，目录名包含测试名称
-	dir := makeTempDir("TestLocalTime", t)
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestLocalTime")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小，并启用 LocalTime 选项
@@ -580,9 +594,12 @@ func TestAutoRotate(t *testing.T) {
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
 
-	// 创建一个临时目录用于测试，目录名包含测试名称
-	dir := makeTempDir("TestAutoRotate", t)
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestAutoRotate")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 获取临时目录下日志文件的完整路径
@@ -648,9 +665,12 @@ func TestFirstWriteRotate(t *testing.T) {
 	currentTime = fakeTime
 	// 设置 megabyte 变量的值为 1
 	megabyte = 1
-	// 创建一个临时目录用于测试，目录名包含测试名称
-	dir := makeTempDir("TestFirstWriteRotate", t)
-	// 测试结束后删除临时目录
+	// 创建logs目录用于测试
+	dir := filepath.Join("logs", "TestFirstWriteRotate")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	// 获取临时目录下日志文件的完整路径
@@ -666,7 +686,7 @@ func TestFirstWriteRotate(t *testing.T) {
 	// 定义要写入现有文件的初始数据
 	start := []byte("boooooo!")
 	// 将初始数据写入日志文件，文件权限设置为 0600
-	err := os.WriteFile(filename, start, defaultFilePerm)
+	err = os.WriteFile(filename, start, defaultFilePerm)
 	// 验证写入操作是否成功
 	isNil(err, t)
 
