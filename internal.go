@@ -191,21 +191,8 @@ func backupName(name string, local bool) string {
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
 
-// ensureFileOpen 确保日志文件已正确打开，如果未打开则尝试打开
-//
-// 参数:
-//   - writeLen: 预计写入的数据长度
-//
-// 返回值:
-//   - 如果文件已打开或成功打开文件, 返回 nil
-func (l *LogRotateX) ensureFileOpen(writeLen int) error {
-	if l.file != nil {
-		return nil
-	}
-	return l.openExistingOrNew(writeLen)
-}
-
-// openExistingOrNew 尝试打开现有的日志文件用于写入。
+// openExistingOrNew 确保日志文件已正确打开。
+// 如果文件已打开则直接返回；如果未打开则尝试打开现有文件或创建新文件。
 // 如果文件存在且当前写入操作不会使文件大小超过 MaxSize, 则直接打开该文件。
 // 如果文件不存在, 或者写入操作会使文件大小超过 MaxSize, 则创建一个新的日志文件。
 //
@@ -213,8 +200,13 @@ func (l *LogRotateX) ensureFileOpen(writeLen int) error {
 //   - writeLen: 预计写入的数据长度
 //
 // 返回值:
-//   - 如果成功打开现有文件或创建新文件, 返回 nil
+//   - 如果文件已打开或成功打开现有文件或创建新文件, 返回 nil
 func (l *LogRotateX) openExistingOrNew(writeLen int) error {
+	// 如果文件已经打开，直接返回
+	if l.file != nil {
+		return nil
+	}
+
 	// 确保日志文件的大小信息是最新的
 	l.mill()
 

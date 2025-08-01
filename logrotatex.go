@@ -119,25 +119,31 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	writeLen := int64(len(p))
 
 	// 确保文件已正确打开
-	if err = l.ensureFileOpen(len(p)); err != nil {
+	if err = l.openExistingOrNew(len(p)); err != nil {
 		return 0, err
 	}
 
-	// 检查是否需要轮转
+	// 检查是否需要轮转: 当前文件大小+写入数据长度 > 超过最大大小
 	if l.size+writeLen > l.max() {
 		// 执行日志轮转操作
 		if err := l.rotate(); err != nil {
 			return 0, err
 		}
 		// 轮转后必须重新确保文件打开
-		if err = l.ensureFileOpen(len(p)); err != nil {
+		if err = l.openExistingOrNew(len(p)); err != nil {
 			return 0, err
 		}
 	}
 
-	// 双重检查确保文件句柄有效
+	// 双重检查确保文件句柄有效，如果为nil则尝试重新打开
 	if l.file == nil {
-		return 0, fmt.Errorf("logrotatex: 文件句柄无效，无法写入数据")
+		if err = l.openExistingOrNew(len(p)); err != nil {
+			return 0, fmt.Errorf("logrotatex: 无法打开文件进行写入: %w", err)
+		}
+		// 如果重新打开后仍然为nil，则返回错误
+		if l.file == nil {
+			return 0, fmt.Errorf("logrotatex: 文件句柄仍然无效，无法写入数据")
+		}
 	}
 
 	// 安全地将所有数据写入文件
@@ -145,7 +151,8 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	if err != nil {
 		return n, fmt.Errorf("logrotatex: 写入文件失败: %w", err)
 	}
-	l.size += int64(n)
+	l.size += int64(n) // 更新当前文件大小
+
 	return n, nil
 }
 
