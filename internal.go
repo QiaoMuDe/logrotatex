@@ -431,6 +431,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 			logFiles = append(logFiles, logInfo{t, info})
 			continue
 		}
+
 		// 尝试从文件名中解析时间戳（压缩文件）
 		if t, err := l.timeFromName(f.Name(), prefix, ext+compressSuffix); err == nil {
 			logFiles = append(logFiles, logInfo{t, info})

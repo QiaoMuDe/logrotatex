@@ -69,12 +69,12 @@ func TestMain(m *testing.M) {
 	// 运行所有测试
 	exitCode := m.Run()
 
-	// 清理日志目录
-	if _, err := os.Stat("logs"); err == nil {
-		if err := os.RemoveAll("logs"); err != nil {
-			fmt.Printf("清理日志目录失败: %v\n", err)
-		}
-	}
+	// // 清理日志目录
+	// if _, err := os.Stat("logs"); err == nil {
+	// 	if err := os.RemoveAll("logs"); err != nil {
+	// 		fmt.Printf("清理日志目录失败: %v\n", err)
+	// 	}
+	// }
 
 	// 恢复原始输出
 	if !testing.Verbose() {

@@ -111,6 +111,9 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 计算要写入的数据长度
 	writeLen := int64(len(p))
 
+	// 添加总写入字节数跟踪
+	totalWritten := 0
+
 	// 检查当前日志文件是否未打开
 	if l.file == nil {
 		// 如果文件未打开, 尝试打开现有文件或创建新文件
@@ -136,39 +139,44 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 如果数据不能完全写入当前文件
 	// 先写入当前文件剩余空间
 	if remainingSpace > 0 {
+		// 确保类型安全的转换
+		writeSize := int(remainingSpace)
+
 		// 向日志文件写入当前文件剩余空间的数据
-		n1, writeErr := l.file.Write(p[:remainingSpace])
+		n1, writeErr := l.file.Write(p[:writeSize])
 		// 更新当前日志文件的大小
 		l.size += int64(n1)
-		// 如果写入失败，返回错误
+
+		// 累加写入字节数
+		totalWritten += n1
+
+		// 检查写入数据过程中是否发生错误
 		if writeErr != nil {
-			return n1, writeErr
+			return totalWritten, writeErr // 返回已写入的总字节数
 		}
+
 		// 更新要写入的数据
 		p = p[remainingSpace:]
 	}
 
 	// 执行日志轮转操作
 	if rotateErr := l.rotate(); rotateErr != nil {
-		// 若轮转操作失败, 返回错误
-		return n, rotateErr
+		return totalWritten, rotateErr // 返回已写入的总字节数
 	}
 
 	// 轮转后重新检查文件是否打开
 	if l.file == nil {
 		// 如果文件仍未打开, 尝试打开现有文件或创建新文件
 		if err = l.openExistingOrNew(len(p)); err != nil {
-			// 若打开或创建文件失败, 返回错误
-			return n, err
+			return totalWritten, err // 返回已写入的总字节数
 		}
 	}
 
-	// 向新日志文件写入剩余数据
-	n2, err := l.file.Write(p)
-	// 更新当前日志文件的大小
-	l.size += int64(n2)
-	// 返回写入的字节数和可能的错误
-	return n + n2, err
+	n2, writeErr := l.file.Write(p) // 向新日志文件写入剩余数据
+	l.size += int64(n2)             // 更新当前日志文件的大小
+	totalWritten += n2              // 累加写入字节数
+
+	return totalWritten, writeErr // 返回总写入字节数
 }
 
 // Close 是 LogRotateX 类型的 Close 方法, 用于关闭日志记录器。

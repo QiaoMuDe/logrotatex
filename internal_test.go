@@ -17,6 +17,7 @@ func TestMaxBackups(t *testing.T) {
 	megabyte = 1
 	// 创建一个临时目录用于测试，目录名包含测试名称
 	dir := makeTempDir("TestMaxBackups", t)
+
 	// 测试结束后删除临时目录
 	defer func() { _ = os.RemoveAll(dir) }()
 
