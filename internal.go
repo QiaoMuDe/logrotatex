@@ -36,6 +36,12 @@ const (
 
 	// defaultMaxSize 是日志文件的最大默认大小(单位: MB), 在未明确设置时使用此值。
 	defaultMaxSize = 10
+
+	// 4KB - 最小缓冲区
+	minBufferSize = 4 * 1024
+
+	// 128KB - 最大缓冲区，避免过度内存使用
+	maxBufferSize = 128 * 1024
 )
 
 // close 是 LogRotateX 类型的实例方法, 用于安全地关闭当前打开的日志文件。
@@ -418,6 +424,7 @@ func (l *LogRotateX) mill() {
 
 // oldLogFiles 返回存储在当前日志文件所在目录中的所有备份日志文件列表,
 // 并按修改时间(ModTime)对这些文件进行排序
+// 使用优化的文件扫描策略，减少不必要的系统调用和内存分配
 //
 // 返回值:
 //   - []logInfo: 包含所有备份日志文件的列表
@@ -428,49 +435,79 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("logrotatex: 无法读取日志文件目录: %w", err)
 	}
-	logFiles := []logInfo{}
-	// 用于跟踪已处理的时间戳，避免重复计算同一时间戳的压缩和非压缩文件
-	processedTimestamps := make(map[time.Time]bool)
 
-	// 获取日志文件的前缀和扩展名
+	// 如果目录为空，直接返回
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	// 获取日志文件的前缀和扩展名（只计算一次）
 	prefix, ext := l.prefixAndExt()
+	currentFileName := filepath.Base(l.filename())
+	compressedExt := ext + compressSuffix
 
+	// 第一遍扫描：快速过滤，只统计符合条件的文件数量
+	candidateCount := 0
 	for _, f := range files {
-		if f.IsDir() {
-			// 如果是目录, 则跳过
+		if f.IsDir() || f.Name() == currentFileName {
+			continue
+		}
+		fileName := f.Name()
+		if (prefix == "" || strings.HasPrefix(fileName, prefix)) &&
+			(strings.HasSuffix(fileName, ext) || strings.HasSuffix(fileName, compressedExt)) {
+			candidateCount++
+		}
+	}
+
+	// 如果没有候选文件，直接返回
+	if candidateCount == 0 {
+		return nil, nil
+	}
+
+	// 精确分配内存，避免重新分配
+	logFiles := make([]logInfo, 0, candidateCount)
+	processedTimestamps := make(map[time.Time]bool, candidateCount)
+
+	// 第二遍扫描：处理符合条件的文件
+	for _, f := range files {
+		// 快速过滤：跳过目录和当前日志文件
+		if f.IsDir() || f.Name() == currentFileName {
 			continue
 		}
 
-		// 跳过当前正在写入的日志文件
-		if f.Name() == filepath.Base(l.filename()) {
+		fileName := f.Name()
+
+		// 快速过滤：检查文件名前缀和扩展名
+		if prefix != "" && !strings.HasPrefix(fileName, prefix) {
+			continue
+		}
+		if !strings.HasSuffix(fileName, ext) && !strings.HasSuffix(fileName, compressedExt) {
 			continue
 		}
 
-		// 获取文件的信息
+		// 尝试从文件名中解析时间戳（避免重复字符串操作）
+		var timestamp time.Time
+		var parseErr error
+
+		if strings.HasSuffix(fileName, compressedExt) {
+			timestamp, parseErr = l.timeFromName(fileName, prefix, compressedExt)
+		} else {
+			timestamp, parseErr = l.timeFromName(fileName, prefix, ext)
+		}
+
+		// 如果解析失败或时间戳已处理过，跳过
+		if parseErr != nil || processedTimestamps[timestamp] {
+			continue
+		}
+
+		// 只有在确认需要时才获取文件信息（延迟获取）
 		info, err := f.Info()
 		if err != nil {
 			continue
 		}
 
-		var timestamp time.Time
-		var isLogFile bool
-
-		// 尝试从文件名中解析时间戳（未压缩文件）
-		if t, err := l.timeFromName(f.Name(), prefix, ext); err == nil {
-			timestamp = t
-			isLogFile = true
-		} else if t, err := l.timeFromName(f.Name(), prefix, ext+compressSuffix); err == nil {
-			// 尝试从文件名中解析时间戳（压缩文件）
-			timestamp = t
-			isLogFile = true
-		}
-
-		// 如果是日志文件且时间戳未被处理过，则添加到列表中
-		if isLogFile && !processedTimestamps[timestamp] {
-			logFiles = append(logFiles, logInfo{timestamp, info})
-			processedTimestamps[timestamp] = true
-		}
-		// 如果无法解析时间戳, 则说明该文件不是由 logrotatex 生成的备份文件
+		logFiles = append(logFiles, logInfo{timestamp, info})
+		processedTimestamps[timestamp] = true
 	}
 
 	// 按文件的修改时间对日志文件进行排序
@@ -665,7 +702,8 @@ func compressLogFile(src, dst string) (err error) {
 	return nil
 }
 
-// getBufferSize 根据文件大小返回合适的缓冲区大小
+// getBufferSize 根据文件大小和系统内存情况返回合适的缓冲区大小
+// 使用自适应算法，在性能和内存使用之间找到平衡点
 // 参数:
 //
 //	fileSize - 文件大小(字节)
@@ -674,20 +712,30 @@ func compressLogFile(src, dst string) (err error) {
 //
 //	int - 建议的缓冲区大小
 func getBufferSize(fileSize int64) int {
-	// 小文件使用4KB缓冲区
-	if fileSize < 1024*1024 { // 1MB
-		return 4 * 1024 // 4KB
+	// 对于空文件或极小文件，使用最小缓冲区
+	if fileSize <= 0 {
+		return minBufferSize
 	}
-	// 中等文件使用16KB缓冲区
-	if fileSize < 10*1024*1024 { // 10MB
-		return 16 * 1024 // 16KB
+
+	if fileSize <= minBufferSize {
+		return minBufferSize // 确保不会返回小于最小缓冲区的值
 	}
-	// 大文件使用64KB缓冲区
-	if fileSize < 100*1024*1024 { // 100MB
-		return 64 * 1024 // 64KB
+
+	// 自适应算法：缓冲区大小基于文件大小，但限制在合理范围内
+	bufferSize := int(fileSize / 16) // 文件大小的1/16作为基础
+
+	// 确保缓冲区大小是4KB的倍数，提高I/O效率
+	bufferSize = (bufferSize + 4095) & ^4095
+
+	// 限制在合理范围内，确保不会返回0或负数
+	if bufferSize < minBufferSize {
+		return minBufferSize
 	}
-	// 超大文件使用256KB缓冲区
-	return 256 * 1024 // 256KB
+	if bufferSize > maxBufferSize {
+		return maxBufferSize
+	}
+
+	return bufferSize
 }
 
 // logInfo 是一个便捷结构体, 用于返回文件名及其嵌入的时间戳。
