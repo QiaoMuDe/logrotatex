@@ -59,6 +59,7 @@ var (
 //
 // 如果 MaxBackups 和 MaxAge 都为 0，则不会删除任何旧日志文件。
 type LogRotateX struct {
+	/* ========== 配置字段 ========== */
 	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
 	Filename string `json:"filename" yaml:"filename"`
 
@@ -71,30 +72,35 @@ type LogRotateX struct {
 	// MaxBackups 最大保留日志文件的数量。默认情况下, 不会删除旧日志文件。
 	MaxBackups int `json:"maxbackups" yaml:"maxbackups"`
 
+	// ========== 行为选项 ==========
 	// LocalTime 决定是否使用本地时间记录日志文件的轮转时间。默认使用 UTC 时间。
 	LocalTime bool `json:"localtime" yaml:"localtime"`
 
-	// Compress 决定轮转后的日志文件是否应使用 gzip 进行压缩。默认不进行压缩。
+	// Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
 
 	// FilePerm 是日志文件的权限模式。默认值为 0600。
 	FilePerm os.FileMode `json:"fileperm" yaml:"fileperm"`
 
+	/* ========== 运行时状态 ========== */
 	// size 是当前日志文件的大小（以字节为单位）。
 	size int64
 
 	// file 是当前打开的日志文件。
 	file *os.File
 
+	/* ========== 并发控制 ========== */
 	// mu 是互斥锁, 用于保护文件操作。
 	mu sync.Mutex
 
+	/* ========== 后台处理 ========== */
 	// millCh 是一个通道, 用于通知 LogRotateX 进行压缩和删除旧日志文件。
 	millCh chan bool
 
 	// millDone 是一个通道, 用于通知mill goroutine退出
 	millDone chan struct{}
 
+	/* ========== 生命周期控制 ========== */
 	// startMill 是一个 sync.Once, 用于确保只启动一次压缩和删除旧日志文件的 goroutine。
 	startMill sync.Once
 
