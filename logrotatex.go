@@ -13,6 +13,7 @@
 package logrotatex
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -96,6 +97,9 @@ type LogRotateX struct {
 	// startMill 是一个 sync.Once, 用于确保只启动一次压缩和删除旧日志文件的 goroutine。
 	startMill sync.Once
 
+	// closeOnce 是一个 sync.Once, 用于确保只执行一次关闭操作
+	closeOnce sync.Once
+
 	// millStarted 标记mill goroutine是否已启动 (使用原子操作)
 	millStarted atomic.Bool
 }
@@ -159,29 +163,48 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 
 // Close 是 LogRotateX 类型的 Close 方法, 用于关闭日志记录器。
 // 该方法会关闭当前打开的日志文件，释放相关资源，并停止后台goroutine。
-// 此操作是线程安全的，使用互斥锁保护。
+// 此操作是线程安全的，使用 sync.Once 防止重复调用，并通过上下文控制超时。
 //
 // 返回值:
 //   - error: 如果在关闭文件时发生错误，则返回该错误；否则返回 nil。
 func (l *LogRotateX) Close() error {
-	// 加锁, 确保在并发环境下只有一个 goroutine 能够执行下面的代码
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	var closeErr error
 
-	// 停止mill goroutine
-	if l.millStarted.Load() && l.millDone != nil {
-		close(l.millDone)
-		l.millStarted.Store(false)
-	}
+	// 使用 sync.Once 确保整个关闭操作只执行一次
+	l.closeOnce.Do(func() {
+		// 创建一个带5秒超时的上下文
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	// 关闭mill通道
-	if l.millCh != nil {
-		close(l.millCh)
-		l.millCh = nil
-	}
+		done := make(chan error, 1)
 
-	// 调用 LogRotateX 的 close 方法, 执行具体的关闭操作
-	return l.close()
+		go func() {
+			// 停止mill goroutine
+			if l.millStarted.Load() && l.millDone != nil {
+				close(l.millDone)
+				l.millStarted.Store(false)
+			}
+
+			// 关闭mill通道
+			if l.millCh != nil {
+				close(l.millCh)
+				l.millCh = nil
+			}
+
+			// 调用 LogRotateX 的 close 方法, 执行具体的关闭操作
+			done <- l.close()
+		}()
+
+		// 等待关闭完成或上下文取消
+		select {
+		case err := <-done:
+			closeErr = err
+		case <-ctx.Done():
+			closeErr = fmt.Errorf("关闭操作被取消: %w", ctx.Err())
+		}
+	})
+
+	return closeErr
 }
 
 // Rotate 是 LogRotateX 类型的一个方法, 用于执行日志文件的轮转操作。
