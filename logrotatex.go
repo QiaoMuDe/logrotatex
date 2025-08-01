@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,6 +35,100 @@ var (
 	// megabyte 是用于将MB转换为字节的常量。
 	megabyte = 1024 * 1024
 )
+
+// validatePath 验证文件路径的安全性，防止路径遍历攻击
+// 参数:
+//   - path string: 要验证的文件路径
+//
+// 返回值:
+//   - error: 如果路径不安全则返回错误，否则返回 nil
+func validatePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("路径不能为空")
+	}
+
+	// 1. 使用 filepath.Clean 清理路径，移除多余的分隔符和相对路径元素
+	cleanPath := filepath.Clean(path)
+
+	// 2. 检查是否包含路径遍历攻击模式
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("检测到路径遍历攻击，路径包含 '..' 元素: %s", path)
+	}
+
+	// 3. 检查是否为绝对路径中的危险路径
+	if filepath.IsAbs(cleanPath) {
+		// 获取绝对路径
+		absPath, err := filepath.Abs(cleanPath)
+		if err != nil {
+			return fmt.Errorf("无法获取绝对路径: %w", err)
+		}
+
+		// 检查是否试图访问系统敏感目录
+		dangerousPaths := []string{
+			"/etc",
+			"/proc",
+			"/sys",
+			"/dev",
+			"/boot",
+			"/root",
+		}
+
+		for _, dangerous := range dangerousPaths {
+			if strings.HasPrefix(absPath, dangerous) {
+				return fmt.Errorf("不允许访问系统敏感目录: %s", absPath)
+			}
+		}
+	}
+
+	// 4. 检查文件名中的危险字符
+	filename := filepath.Base(cleanPath)
+	if strings.ContainsAny(filename, "<>:\"|?*") {
+		return fmt.Errorf("文件名包含非法字符: %s", filename)
+	}
+
+	// 5. 检查路径长度限制
+	if len(cleanPath) > 4096 {
+		return fmt.Errorf("路径长度超过限制 (4096 字符): %d", len(cleanPath))
+	}
+
+	return nil
+}
+
+// sanitizePath 清理并返回安全的文件路径
+// 参数:
+//   - path string: 原始文件路径
+//
+// 返回值:
+//   - string: 清理后的安全路径
+//   - error: 如果路径不安全则返回错误
+func sanitizePath(path string) (string, error) {
+	if err := validatePath(path); err != nil {
+		return "", err
+	}
+
+	// 使用 filepath.Clean 清理路径
+	cleanPath := filepath.Clean(path)
+
+	// 如果是相对路径，确保它不会跳出当前工作目录
+	if !filepath.IsAbs(cleanPath) {
+		// 获取当前工作目录
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("无法获取当前工作目录: %w", err)
+		}
+
+		// 将相对路径转换为绝对路径
+		absPath := filepath.Join(wd, cleanPath)
+		cleanPath = filepath.Clean(absPath)
+
+		// 确保最终路径仍在工作目录下
+		if !strings.HasPrefix(cleanPath, wd) {
+			return "", fmt.Errorf("路径试图跳出工作目录: %s", path)
+		}
+	}
+
+	return cleanPath, nil
+}
 
 // LogRotateX 是一个 io.WriteCloser，它会将日志写入指定的文件名。
 //
@@ -102,6 +198,52 @@ type LogRotateX struct {
 
 	// millStarted 标记mill goroutine是否已启动 (使用原子操作)
 	millStarted atomic.Bool
+}
+
+// NewLogRotateX 创建一个新的 LogRotateX 实例，使用指定的文件路径和合理的默认配置。
+// 该构造函数会验证和清理文件路径，确保路径安全性，并设置推荐的默认值。
+// 如果路径不安全或创建失败，此函数会立即 panic，确保问题能够快速被发现。
+//
+// 参数:
+//   - filename string: 日志文件的路径，会进行安全验证和清理
+//
+// 返回值:
+//   - *LogRotateX: 配置好的 LogRotateX 实例
+//
+// 默认配置:
+//   - MaxSize: 10MB (单个日志文件最大大小)
+//   - MaxAge: 0天 (日志文件最大保留时间, 0表示不清理历史文件)
+//   - MaxBackups: 0个 (最大备份文件数量, 0表示不清理备份文件)
+//   - LocalTime: true (使用本地时间)
+//   - Compress: false (禁用压缩)
+//   - FilePerm: 0600 (文件权限，所有者读写，组和其他用户只读)
+//
+// 注意: 如果文件路径不安全或创建失败，此函数会 panic
+func NewLogRotateX(filename string) *LogRotateX {
+	// 验证和清理文件路径
+	safePath, err := sanitizePath(filename)
+	if err != nil {
+		panic(fmt.Sprintf("logrotatex: 创建 LogRotateX 失败，文件路径不安全: %v", err))
+	}
+
+	// 确保目录存在
+	dir := filepath.Dir(safePath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		panic(fmt.Sprintf("logrotatex: 创建日志目录失败: %v", err))
+	}
+
+	// 创建 LogRotateX 实例并设置默认值
+	logger := &LogRotateX{
+		Filename:   safePath, // 日志文件路径
+		MaxSize:    10,       // 10MB
+		MaxAge:     0,        // 0天 (默认不清理历史文件)
+		MaxBackups: 0,        // 0个备份文件 (默认不清理备份文件)
+		LocalTime:  true,     // 使用本地时间
+		Compress:   false,    // 禁用压缩
+		FilePerm:   0600,     // 文件权限：所有者读写，组和其他用户只读
+	}
+
+	return logger
 }
 
 // Write 实现了 io.Writer 接口，用于向日志文件写入数据。
