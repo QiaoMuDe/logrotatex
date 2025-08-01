@@ -274,6 +274,8 @@ func (l *LogRotateX) Close() error {
 		// 等待关闭完成或上下文取消
 		select {
 		case err := <-done:
+			// 报错也要关闭文件句柄
+			_ = l.file.Close()
 			closeErr = err
 		case <-ctx.Done():
 			// 即使超时也要尝试强制关闭文件句柄
