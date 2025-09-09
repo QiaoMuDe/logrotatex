@@ -11,18 +11,10 @@ import (
 	"strings"
 )
 
-// close 是 LogRotateX 类型的实例方法, 用于安全地关闭当前打开的日志文件。
-// 该方法增强了错误处理和资源管理，确保在异常情况下文件句柄能正确关闭，防止资源泄漏。
+// close 安全地关闭当前打开的日志文件，防止资源泄漏。
 //
-// 该方法执行以下操作：
-// 1. 检查是否有文件需要关闭(l.file != nil)
-// 2. 调用文件的 Close 方法执行实际关闭操作
-// 3. 将文件句柄置为 nil, 防止重复关闭
-// 4. 返回关闭过程中可能产生的错误
-//
-// 返回值：
-//   - 如果成功关闭文件或没有文件需要关闭, 返回 nil
-//   - 如果关闭文件时发生错误, 返回相应的 error
+// 返回值:
+//   - error: 关闭失败时返回错误，否则返回 nil
 func (l *LogRotateX) close() error {
 	// 检查 l.file 是否为 nil, 如果是则直接返回 nil, 表示没有文件需要关闭
 	if l.file == nil {
@@ -54,19 +46,10 @@ func (l *LogRotateX) close() error {
 	return nil
 }
 
-// rotate 是 LogRotateX 结构体的一个方法，用于执行日志文件的轮转操作。
+// rotate 执行日志文件轮转操作，关闭当前文件并创建新文件。
 //
-// 日志轮转是日志管理的核心功能，当当前日志文件达到一定条件时（如大小限制），
-// 需要将其重命名为备份文件并创建一个新的日志文件继续写入。
-//
-// 该方法执行以下操作：
-// 1. 调用 close 方法关闭当前的日志文件
-// 2. 调用 openNew 方法打开一个新的日志文件
-// 3. 调用 mill 方法处理日志文件的后续逻辑（如压缩、清理等）
-//
-// 返回值：
-//   - 如果所有操作都成功完成，返回 nil
-//   - 如果在关闭当前文件或打开新文件时发生错误，返回相应的 error
+// 返回值:
+//   - error: 轮转失败时返回错误，否则返回 nil
 func (l *LogRotateX) rotate() error {
 	// 调用 close 方法关闭当前的日志文件。
 	// 如果关闭过程中发生错误, 返回该错误。
@@ -85,12 +68,10 @@ func (l *LogRotateX) rotate() error {
 	return nil
 }
 
-// openNew 用于打开一个新的日志文件用于写入, 并将旧的日志文件移出当前路径。
-// 该方法确保日志目录存在，处理现有文件的重命名，并创建新的日志文件。
-// 在异常情况下确保文件句柄正确关闭，防止资源泄漏。
+// openNew 创建新的日志文件，将现有文件重命名为备份文件。
 //
-// 返回值：
-//   - 如果成功打开新的日志文件，返回 nil
+// 返回值:
+//   - error: 创建失败时返回错误，否则返回 nil
 func (l *LogRotateX) openNew() error {
 	// 确保日志文件所在目录存在，使用更安全的目录权限
 	// 如果目录不存在则创建，如果已存在则不执行任何操作
@@ -147,16 +128,14 @@ func (l *LogRotateX) openNew() error {
 	return nil
 }
 
-// backupName 根据给定的文件名创建一个新的备份文件名。
-// 如果指定使用本地时间, 则在文件名和扩展名之间插入本地时间的时间戳；
-// 否则插入 UTC 时间的时间戳。
+// backupName 根据原始文件名生成带时间戳的备份文件名。
 //
 // 参数:
 //   - name: 原始文件名
-//   - local: 是否使用本地时间, true 表示使用本地时间, false 表示使用 UTC 时间
+//   - local: 是否使用本地时间，false 使用 UTC 时间
 //
 // 返回值:
-//   - 新的备份文件名
+//   - string: 带时间戳的备份文件名
 func backupName(name string, local bool) string {
 	// 获取文件所在的目录
 	dir := filepath.Dir(name)
@@ -191,17 +170,13 @@ func backupName(name string, local bool) string {
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
 
-// openExistingOrNew 确保日志文件已正确打开。
-// 如果文件已打开则直接返回；如果未打开则尝试打开现有文件或创建新文件。
-// 如果文件存在且当前写入操作不会使文件大小超过 MaxSize, 则直接打开该文件。
-// 如果文件不存在, 或者写入操作会使文件大小超过 MaxSize, 则创建一个新的日志文件。
-// 在异常情况下确保文件句柄正确关闭，防止资源泄漏。
+// openExistingOrNew 确保日志文件已打开，根据文件大小决定是否需要轮转。
 //
 // 参数:
 //   - writeLen: 预计写入的数据长度
 //
 // 返回值:
-//   - 如果文件已打开或成功打开现有文件或创建新文件, 返回 nil
+//   - error: 打开文件失败时返回错误，否则返回 nil
 func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	// 如果文件已经打开，直接返回
 	if l.file != nil {

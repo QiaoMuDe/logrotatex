@@ -122,47 +122,17 @@ type LogRotateX struct {
 }
 
 // New 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
-// 这是一个函数变量别名，提供了更简洁的构造函数调用方式。
-//
-// 使用方式:
-//
-//	logger := logrotatex.New("logs/app.log")
-//	// 等价于: logger := logrotatex.NewLogRotateX("logs/app.log")
-//
-// 参数:
-//   - filename string: 日志文件的路径，会进行安全验证和清理
-//
-// 返回值:
-//   - *LogRotateX: 配置好的 LogRotateX 实例，使用默认配置
-//
-// 默认配置与 NewLogRotateX 完全相同:
-//   - MaxSize: 10MB
-//   - MaxAge: 0天 (不清理历史文件)
-//   - MaxBackups: 0个 (不清理备份文件)
-//   - LocalTime: true (使用本地时间)
-//   - Compress: false (禁用压缩)
-//   - FilePerm: 0600 (文件权限)
 var New = NewLogRotateX
 
-// NewLogRotateX 创建一个新的 LogRotateX 实例，使用指定的文件路径和合理的默认配置。
-// 该构造函数会验证和清理文件路径，确保路径安全性，并设置推荐的默认值。
-// 如果路径不安全或创建失败，此函数会立即 panic，确保问题能够快速被发现。
+// NewLogRotateX 创建一个新的 LogRotateX 实例，使用默认配置。
 //
 // 参数:
-//   - filename string: 日志文件的路径，会进行安全验证和清理
+//   - filename: 日志文件路径
 //
 // 返回值:
-//   - *LogRotateX: 配置好的 LogRotateX 实例
+//   - *LogRotateX: 配置好的实例
 //
-// 默认配置:
-//   - MaxSize: 10MB (单个日志文件最大大小)
-//   - MaxAge: 0天 (日志文件最大保留时间, 0表示不清理历史文件)
-//   - MaxBackups: 0个 (最大备份文件数量, 0表示不清理备份文件)
-//   - LocalTime: true (使用本地时间)
-//   - Compress: false (禁用压缩)
-//   - FilePerm: 0600 (文件权限，所有者读写，组和其他用户只读)
-//
-// 注意: 如果文件路径不安全或创建失败，此函数会 panic
+// 默认配置: MaxSize=10MB, MaxAge=0, MaxBackups=0, LocalTime=true, Compress=false
 func NewLogRotateX(filename string) *LogRotateX {
 	// 验证文件路径
 	if filename == "" {
@@ -192,15 +162,15 @@ func NewLogRotateX(filename string) *LogRotateX {
 	return logger
 }
 
-// Write 实现了 io.Writer 接口，用于向日志文件写入数据。
-// 该方法会处理日志轮转逻辑，确保单个日志文件不会超过设定的最大大小。
+// Write 实现 io.Writer 接口，向日志文件写入数据。
+// 当文件大小超过限制时自动执行轮转。
 //
 // 参数:
-//   - p []byte: 要写入的日志数据
+//   - p: 要写入的数据
 //
 // 返回值:
-//   - n int: 实际写入的字节数
-//   - err error: 如果写入过程中发生错误，则返回该错误；否则返回 nil
+//   - n: 实际写入的字节数
+//   - err: 写入失败时返回错误
 func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 加锁以确保并发安全, 防止多个 goroutine 同时操作文件
 	l.mu.Lock()
@@ -249,13 +219,11 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-// Close 是 LogRotateX 类型的 Close 方法, 用于关闭日志记录器。
-// 该方法会关闭当前打开的日志文件，释放相关资源，并停止后台goroutine。
-// 此操作是线程安全的，使用 sync.Once 防止重复调用，并通过上下文控制超时。
-// 在异常情况下确保文件句柄正确关闭，防止资源泄漏。
+// Close 关闭日志记录器，释放资源并停止后台 goroutine。
+// 使用 sync.Once 防止重复调用，带5秒超时控制。
 //
 // 返回值:
-//   - error: 如果在关闭文件时发生错误，则返回该错误；否则返回 nil。
+//   - error: 关闭失败时返回错误，否则返回 nil
 func (l *LogRotateX) Close() error {
 	var closeErr error
 
@@ -323,13 +291,11 @@ func (l *LogRotateX) Close() error {
 	return closeErr
 }
 
-// Rotate 是 LogRotateX 类型的一个方法, 用于执行日志文件的轮转操作。
-// 该方法会关闭当前日志文件，将其重命名为带有时间戳的备份文件，
-// 然后创建一个新的日志文件用于后续写入。
-// 此操作是线程安全的，使用互斥锁保护。
+// Rotate 手动执行日志文件轮转操作。
+// 关闭当前文件，重命名为备份文件，创建新文件。
 //
 // 返回值:
-//   - error: 如果在执行轮转操作时发生错误，则返回该错误；否则返回 nil。
+//   - error: 轮转失败时返回错误，否则返回 nil
 func (l *LogRotateX) Rotate() error {
 	// 使用互斥锁来确保日志轮转操作的线程安全。
 	l.mu.Lock()
@@ -340,17 +306,9 @@ func (l *LogRotateX) Rotate() error {
 }
 
 // Sync 强制将缓冲区数据同步到磁盘。
-// 该方法会调用底层文件的 Sync() 方法，确保所有写入的数据都被刷新到磁盘上，
-// 而不是仅仅保存在操作系统的缓冲区中。这对于确保数据持久性很重要，
-// 特别是在系统可能意外关闭的情况下。
-//
-// 注意事项：
-//   - 此操作是线程安全的，使用互斥锁保护
-//   - 如果当前没有打开的文件，则直接返回 nil
-//   - 频繁调用此方法可能会影响写入性能
 //
 // 返回值:
-//   - error: 如果同步操作失败，则返回相应的错误；否则返回 nil
+//   - error: 同步失败时返回错误，否则返回 nil
 func (l *LogRotateX) Sync() error {
 	// 加锁以确保并发安全，防止在同步过程中文件被其他操作修改
 	l.mu.Lock()
@@ -366,13 +324,6 @@ func (l *LogRotateX) Sync() error {
 }
 
 // CurrentFile 返回当前正在写入的日志文件路径。
-// 该方法返回的是主日志文件的路径，即用户在创建 LogRotateX 时指定的文件名。
-// 这个路径始终指向"当前"的日志文件，轮转后的备份文件会使用不同的文件名。
-//
-// 注意事项：
-//   - 此方法不需要加锁，因为 Filename 字段在创建后不会改变
-//   - 返回的路径是绝对路径（经过 sanitizePath 处理）
-//   - 即使文件尚未创建，也会返回预期的文件路径
 //
 // 返回值:
 //   - string: 当前日志文件的完整路径
@@ -381,13 +332,6 @@ func (l *LogRotateX) CurrentFile() string {
 }
 
 // GetMaxSize 返回配置的最大文件大小（以字节为单位）。
-// 该方法将用户配置的 MaxSize（以 MB 为单位）转换为字节数返回。
-// 当日志文件大小达到或超过此值时，会触发日志轮转操作。
-//
-// 注意事项：
-//   - 此方法不需要加锁，因为 MaxSize 是配置值，通常不会在运行时改变
-//   - 返回值是以字节为单位的 int64 类型
-//   - 转换公式：MaxSize(MB) * 1024 * 1024 = 字节数
 //
 // 返回值:
 //   - int64: 最大文件大小（字节）
@@ -396,13 +340,6 @@ func (l *LogRotateX) GetMaxSize() int64 {
 }
 
 // GetCurrentSize 返回当前日志文件的大小（以字节为单位）。
-// 该方法返回当前正在写入的日志文件已经写入的字节数。
-// 这个值会在每次写入操作后更新，可以用来监控文件大小或判断是否接近轮转阈值。
-//
-// 注意事项：
-//   - 此操作是线程安全的，使用互斥锁保护
-//   - 返回的是内存中维护的大小计数，而不是实际查询文件系统
-//   - 如果文件尚未创建或打开，返回值为 0
 //
 // 返回值:
 //   - int64: 当前文件大小（字节）

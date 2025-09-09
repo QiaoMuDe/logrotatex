@@ -18,14 +18,10 @@ import (
 )
 
 // millRunOnce 执行一次日志文件的压缩和清理操作。
-// 根据配置的 MaxBackups、MaxAge 和 Compress 选项，执行以下操作：
-// 1. 获取所有符合条件的旧日志文件
-// 2. 保留最新的 MaxBackups 个日志文件，移除多余文件
-// 3. 移除超过 MaxAge 天的旧日志文件
-// 4. 压缩未压缩的日志文件（如果启用了压缩）
+// 根据 MaxBackups、MaxAge 和 Compress 配置处理旧日志文件。
 //
-// 返回:
-//   - 操作过程中发生的错误，如果有多个错误，将返回聚合错误
+// 返回值:
+//   - error: 操作失败时返回错误，否则返回 nil
 func (l *LogRotateX) millRunOnce() error {
 	// 快速路径: 如果没有设置备份保留数量, 备份保留天数, 启用压缩功能, 则直接返回
 	if l.MaxBackups == 0 && l.MaxAge == 0 && !l.Compress {
@@ -118,9 +114,8 @@ func (l *LogRotateX) millRunOnce() error {
 	return nil
 }
 
-// millRun 在一个独立的 goroutine 中运行, 用于管理日志文件的压缩和清理操作。
-// 当日志文件发生轮转时, 会触发该 goroutine 执行一次清理操作。
-// 该goroutine会在收到context取消信号时安全退出。
+// millRun 在独立的 goroutine 中运行，处理日志文件的压缩和清理操作。
+// 收到 context 取消信号时安全退出。
 func (l *LogRotateX) millRun() {
 	defer func() {
 		// 标记goroutine已完成
@@ -146,8 +141,8 @@ func (l *LogRotateX) millRun() {
 	}
 }
 
-// mill 负责在日志文件轮转后执行压缩和清理操作。
-// 如果尚未启动管理 goroutine, 则会启动它。
+// mill 触发日志文件的压缩和清理操作。
+// 如果管理 goroutine 未启动则启动它。
 func (l *LogRotateX) mill() {
 	l.startMill.Do(func() {
 		// 创建context用于goroutine生命周期管理
@@ -172,13 +167,11 @@ func (l *LogRotateX) mill() {
 	}
 }
 
-// oldLogFiles 返回存储在当前日志文件所在目录中的所有备份日志文件列表,
-// 并按修改时间(ModTime)对这些文件进行排序
-// 优化版本：单次扫描，时间复杂度O(n)，大幅提升性能
+// oldLogFiles 返回当前目录中的所有备份日志文件，按时间戳排序。
 //
 // 返回值:
-//   - []logInfo: 包含所有备份日志文件的列表
-//   - error: 如果在读取日志文件目录时发生错误, 则返回相应的错误信息
+//   - []logInfo: 备份日志文件列表
+//   - error: 读取目录失败时返回错误
 func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	// 读取日志文件所在目录中的所有文件
 	files, err := os.ReadDir(l.dir())
@@ -258,8 +251,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	return logFiles, nil
 }
 
-// fastTimeFromName 优化版本的时间戳解析函数
-// 减少字符串操作，提升解析性能
+// fastTimeFromName 从文件名中快速解析时间戳。
 func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, error) {
 	// 计算时间戳的起始和结束位置
 	var startPos, endPos int
@@ -284,17 +276,16 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 	return time.Parse(backupTimeFormat, timestampStr)
 }
 
-// timeFromName 从文件名中提取格式化的时间戳。
-// 通过移除文件名的前缀和扩展名, 避免文件名混淆 time.Parse 的解析结果。
+// timeFromName 从文件名中提取时间戳。
 //
 // 参数:
 //   - filename: 文件名
 //   - prefix: 文件名前缀
-//   - ext: 文件名扩展名
+//   - ext: 文件扩展名
 //
 // 返回值:
 //   - time.Time: 解析得到的时间戳
-//   - error: 解析错误
+//   - error: 解析失败时返回错误
 func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, error) {
 	// 如果前缀为空，则直接从文件名开始解析时间戳
 	if prefix == "" {
@@ -331,16 +322,14 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 	return time.Parse(backupTimeFormat, ts)
 }
 
-// compressLogFile 压缩指定的日志文件, 并在成功后删除原始未压缩的日志文件。
-// 使用defer确保所有文件句柄在异常情况下都能正确关闭，防止资源泄漏。
-// 参数:
+// compressLogFile 压缩指定的日志文件，成功后删除原文件。
 //
-//	src - 源日志文件路径
-//	dst - 目标压缩文件路径(应包含.zip扩展名)
+// 参数:
+//   - src: 源日志文件路径
+//   - dst: 目标压缩文件路径
 //
 // 返回值:
-//
-//	error - 操作过程中遇到的错误
+//   - error: 压缩失败时返回错误，否则返回 nil
 func compressLogFile(src, dst string) (err error) {
 	// 获取源日志文件的状态信息（在打开文件之前）
 	fi, err := os.Stat(src)
