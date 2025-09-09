@@ -86,12 +86,6 @@ func (l *LogRotateX) millRunOnce() error {
 		// 合并路径
 		filePath := filepath.Join(l.dir(), f.Name())
 
-		// 验证要删除的文件路径
-		if err := validatePath(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("跳过不安全的文件路径: %s, 错误: %w", filePath, err))
-			continue
-		}
-
 		// 移除文件
 		if err := os.Remove(filePath); err != nil {
 			errors = append(errors, fmt.Errorf("logrotatex: 移除日志文件 %s 失败: %w", filePath, err))
@@ -348,14 +342,6 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 //
 //	error - 操作过程中遇到的错误
 func compressLogFile(src, dst string) (err error) {
-	// 验证源文件和目标文件路径
-	if err := validatePath(src); err != nil {
-		return fmt.Errorf("logrotatex: 源文件路径不安全: %w", err)
-	}
-	if err := validatePath(dst); err != nil {
-		return fmt.Errorf("logrotatex: 目标文件路径不安全: %w", err)
-	}
-
 	// 获取源日志文件的状态信息（在打开文件之前）
 	fi, err := os.Stat(src)
 	if err != nil {

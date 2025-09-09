@@ -164,21 +164,23 @@ var New = NewLogRotateX
 //
 // 注意: 如果文件路径不安全或创建失败，此函数会 panic
 func NewLogRotateX(filename string) *LogRotateX {
-	// 验证和清理文件路径
-	safePath, err := sanitizePath(filename)
-	if err != nil {
-		panic(fmt.Sprintf("logrotatex: 创建 LogRotateX 失败，文件路径不安全: %v", err))
+	// 验证文件路径
+	if filename == "" {
+		panic("logrotatex: 日志文件路径不能为空")
 	}
 
+	// 清理文件路径
+	filename = filepath.Clean(filename)
+
 	// 确保目录存在
-	dir := filepath.Dir(safePath)
+	dir := filepath.Dir(filename)
 	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
 		panic(fmt.Sprintf("logrotatex: 创建日志目录失败: %v", err))
 	}
 
 	// 创建 LogRotateX 实例并设置默认值
 	logger := &LogRotateX{
-		Filename:   safePath,        // 日志文件路径
+		Filename:   filename,        // 日志文件路径
 		MaxSize:    10,              // 10MB
 		MaxAge:     0,               // 0天 (默认不清理历史文件)
 		MaxBackups: 0,               // 0个备份文件 (默认不清理备份文件)

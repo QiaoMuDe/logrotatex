@@ -101,11 +101,6 @@ func (l *LogRotateX) openNew() error {
 	// 获取日志文件的完整路径
 	name := l.filename()
 
-	// 验证新文件路径
-	if err := validatePath(name); err != nil {
-		return fmt.Errorf("logrotatex: 新文件路径验证失败: %w", err)
-	}
-
 	// 获取文件的权限模式
 	mode := l.FilePerm
 	// 如果未设置FilePerm, 则使用默认值0600
@@ -211,11 +206,6 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	// 如果文件已经打开，直接返回
 	if l.file != nil {
 		return nil
-	}
-
-	// 建议在这里添加路径验证
-	if err := validatePath(l.filename()); err != nil {
-		return fmt.Errorf("logrotatex: 文件路径验证失败: %w", err)
 	}
 
 	// 确保日志文件的大小信息是最新的
