@@ -10,10 +10,6 @@
 // 注意事项：
 // - 假设只有一个进程在向输出文件写入日志
 // - 多个进程使用相同的配置可能导致异常行为
-// logrotatex.go 是logrotatex包的主要实现文件。
-// 该文件定义了Logger结构体和核心的日志轮转功能，包括文件大小检查、
-// 时间触发轮转、压缩处理等主要特性，是整个日志轮转系统的核心。
-
 package logrotatex
 
 import (
@@ -149,21 +145,21 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 计算要写入的数据长度
 	writeLen := int64(len(p))
 
-	// 检查当前写入是否会导致文件大小超过限制，如果是则触发轮转。
-	// 这个检查必须在实际写入数据之前进行。
+	// 检查文件是否已打开，如果未打开则尝试打开或创建文件
 	if l.file == nil {
 		if err = l.openExistingOrNew(len(p)); err != nil {
 			return 0, err
 		}
 	}
 
-	// 计算即将写入的数据长度是否会超过最大大小
+	// 检查当前写入是否会导致文件大小超过限制，如果是则触发轮转
 	if l.size+writeLen > l.max() {
-		if err := l.rotate(); err != nil {
-			return 0, err
+		if rotateErr := l.rotate(); rotateErr != nil {
+			return 0, fmt.Errorf("logrotatex: failed to rotate file: %w", rotateErr)
 		}
 	}
 
+	// 再次检查文件是否已打开
 	if l.file == nil {
 		return 0, fmt.Errorf("logrotatex: file handle is nil after attempting to open or rotate")
 	}
@@ -178,8 +174,7 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-// Close 关闭日志记录器，释放资源并停止后台 goroutine。
-// 使用 sync.Once 防止重复调用，带5秒超时控制。
+// Close 关闭日志文件
 //
 // 返回值:
 //   - error: 关闭失败时返回错误，否则返回 nil

@@ -508,7 +508,7 @@ func TestCompressOnResume(t *testing.T) {
 	t.Logf("尝试查找压缩文件: %s", compressedFile)
 	var foundCompressed bool
 	for i := 0; i < 20; i++ { // Try up to 20 times (2 seconds total)
-		if _, err := os.Stat(compressedFile); err == nil {
+		if _, statErr := os.Stat(compressedFile); statErr == nil {
 			foundCompressed = true
 			break
 		}
@@ -796,7 +796,7 @@ func TestLogRunInfo(t *testing.T) {
 	t.Log("第四阶段：验证日志内容")
 
 	// 读取当前日志文件内容
-	if data, err := os.ReadFile(currentLogPath); err == nil {
+	if data, readErr := os.ReadFile(currentLogPath); readErr == nil {
 		t.Logf("当前日志文件大小: %d 字节", len(data))
 
 		// 验证包含某些预期内容
@@ -806,7 +806,7 @@ func TestLogRunInfo(t *testing.T) {
 			t.Log("⚠️ 日志文件为空（可能因为轮转）")
 		}
 	} else {
-		t.Errorf("无法读取日志文件: %v", err)
+		t.Errorf("无法读取日志文件: %v", readErr)
 	}
 
 	// 第五阶段：测试压缩功能（创建新的logger实例）

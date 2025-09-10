@@ -23,8 +23,8 @@ func TestNewLogRotateX_DirectoryPermissions(t *testing.T) {
 	logger := NewLogRotateX(testPath)
 	defer func() {
 		// 调用Close方法确保所有资源被释放
-		if err := logger.Close(); err != nil {
-			t.Logf("关闭logger失败: %v", err)
+		if closeErr := logger.Close(); closeErr != nil {
+			t.Logf("关闭logger失败: %v", closeErr)
 		}
 	}()
 
