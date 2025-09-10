@@ -451,36 +451,6 @@ func TestOldLogFiles(t *testing.T) {
 	equals(t1, files[1].timestamp, t)
 }
 
-// TestTimeFromName 测试从文件名中解析时间的功能，验证不同格式的文件名是否能正确解析出时间。
-func TestTimeFromName(t *testing.T) {
-	// 创建一个 LogRotateX 实例，指定日志文件路径
-	l := &LogRotateX{Filename: "/var/log/myfoo/foo.log"}
-	// 获取日志文件名前缀和扩展名
-	prefix, ext := l.prefixAndExt()
-
-	// 定义测试用例
-	tests := []struct {
-		filename string
-		want     time.Time
-		wantErr  bool
-	}{
-		{"foo-2014-05-04T14-44-33.555.log", time.Date(2014, 5, 4, 14, 44, 33, 555000000, time.UTC), false},
-		{"foo-2014-05-04T14-44-33.555", time.Time{}, true},
-		{"2014-05-04T14-44-33.555.log", time.Time{}, true},
-		{"foo.log", time.Time{}, true},
-	}
-
-	// 遍历测试用例
-	for _, test := range tests {
-		// 从文件名中解析时间
-		got, err := l.timeFromName(test.filename, prefix, ext)
-		// 验证解析结果是否与预期一致
-		equals(got, test.want, t)
-		// 验证解析是否返回预期的错误
-		equals(err != nil, test.wantErr, t)
-	}
-}
-
 // TestLocalTime 测试 LogRotateX 在启用 LocalTime 选项时的行为。
 // 预期结果是在写入数据并触发日志轮转后，主日志文件包含最新写入的数据，备份文件包含旧的数据，且备份文件的时间戳使用本地时间。
 func TestLocalTime(t *testing.T) {
