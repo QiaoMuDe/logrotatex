@@ -43,11 +43,11 @@ func TestGetFilesToRemove_OnlyByCount(t *testing.T) {
 
 	// 创建测试文件列表（按时间从新到旧排序）
 	files := []logInfo{
-		createTestLogInfo("app-2024-01-05.log", now.Add(-1*time.Hour)), // 最新
-		createTestLogInfo("app-2024-01-04.log", now.Add(-2*time.Hour)),
-		createTestLogInfo("app-2024-01-03.log", now.Add(-3*time.Hour)),
-		createTestLogInfo("app-2024-01-02.log", now.Add(-4*time.Hour)),
-		createTestLogInfo("app-2024-01-01.log", now.Add(-5*time.Hour)), // 最旧
+		createTestLogInfo("app_20240105120000.log", now.Add(-1*time.Hour)), // 最新
+		createTestLogInfo("app_20240104120000.log", now.Add(-2*time.Hour)),
+		createTestLogInfo("app_20240103120000.log", now.Add(-3*time.Hour)),
+		createTestLogInfo("app_20240102120000.log", now.Add(-4*time.Hour)),
+		createTestLogInfo("app_20240101120000.log", now.Add(-5*time.Hour)), // 最旧
 	}
 
 	tests := []struct {
@@ -60,7 +60,7 @@ func TestGetFilesToRemove_OnlyByCount(t *testing.T) {
 			name:           "保留最新3个文件",
 			maxBackups:     3,
 			expectedKeep:   3,
-			expectedRemove: []string{"app-2024-01-02.log", "app-2024-01-01.log"},
+			expectedRemove: []string{"app_20240102120000.log", "app_20240101120000.log"},
 		},
 		{
 			name:           "保留数量大于文件总数",
@@ -72,7 +72,7 @@ func TestGetFilesToRemove_OnlyByCount(t *testing.T) {
 			name:           "保留1个文件",
 			maxBackups:     1,
 			expectedKeep:   1,
-			expectedRemove: []string{"app-2024-01-04.log", "app-2024-01-03.log", "app-2024-01-02.log", "app-2024-01-01.log"},
+			expectedRemove: []string{"app_20240104120000.log", "app_20240103120000.log", "app_20240102120000.log", "app_20240101120000.log"},
 		},
 	}
 
@@ -107,11 +107,11 @@ func TestGetFilesToRemove_OnlyByAge(t *testing.T) {
 
 	// 创建测试文件列表（跨越多天）
 	files := []logInfo{
-		createTestLogInfo("app-2024-01-10.log", now.Add(-1*time.Hour)),  // 今天，保留
-		createTestLogInfo("app-2024-01-09.log", now.Add(-25*time.Hour)), // 1天前，保留
-		createTestLogInfo("app-2024-01-08.log", now.Add(-49*time.Hour)), // 2天前，保留
-		createTestLogInfo("app-2024-01-07.log", now.Add(-73*time.Hour)), // 3天前，删除
-		createTestLogInfo("app-2024-01-06.log", now.Add(-97*time.Hour)), // 4天前，删除
+		createTestLogInfo("app_20240110120000.log", now.Add(-1*time.Hour)),  // 今天，保留
+		createTestLogInfo("app_20240109120000.log", now.Add(-25*time.Hour)), // 1天前，保留
+		createTestLogInfo("app_20240108120000.log", now.Add(-49*time.Hour)), // 2天前，保留
+		createTestLogInfo("app_20240107120000.log", now.Add(-73*time.Hour)), // 3天前，删除
+		createTestLogInfo("app_20240106120000.log", now.Add(-97*time.Hour)), // 4天前，删除
 	}
 
 	tests := []struct {
@@ -122,12 +122,12 @@ func TestGetFilesToRemove_OnlyByAge(t *testing.T) {
 		{
 			name:           "保留最近3天",
 			maxAge:         3,
-			expectedRemove: []string{"app-2024-01-07.log", "app-2024-01-06.log"},
+			expectedRemove: []string{"app_20240107120000.log", "app_20240106120000.log"},
 		},
 		{
 			name:           "保留最近1天",
 			maxAge:         1,
-			expectedRemove: []string{"app-2024-01-09.log", "app-2024-01-08.log", "app-2024-01-07.log", "app-2024-01-06.log"},
+			expectedRemove: []string{"app_20240109120000.log", "app_20240108120000.log", "app_20240107120000.log", "app_20240106120000.log"},
 		},
 		{
 			name:           "保留最近7天",
@@ -168,20 +168,20 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 	// 创建测试文件列表（每天多个文件）
 	files := []logInfo{
 		// 今天的文件
-		createTestLogInfo("app-2024-01-10T09-00-00.log", now.Add(-1*time.Hour)),
-		createTestLogInfo("app-2024-01-10T06-00-00.log", now.Add(-4*time.Hour)),
-		createTestLogInfo("app-2024-01-10T03-00-00.log", now.Add(-7*time.Hour)),
+		createTestLogInfo("app_20240110090000.log", now.Add(-1*time.Hour)),
+		createTestLogInfo("app_20240110060000.log", now.Add(-4*time.Hour)),
+		createTestLogInfo("app_20240110030000.log", now.Add(-7*time.Hour)),
 
 		// 1天前的文件
-		createTestLogInfo("app-2024-01-09T18-00-00.log", now.Add(-25*time.Hour)),
-		createTestLogInfo("app-2024-01-09T12-00-00.log", now.Add(-31*time.Hour)),
-		createTestLogInfo("app-2024-01-09T06-00-00.log", now.Add(-37*time.Hour)),
+		createTestLogInfo("app_20240109180000.log", now.Add(-25*time.Hour)),
+		createTestLogInfo("app_20240109120000.log", now.Add(-31*time.Hour)),
+		createTestLogInfo("app_20240109060000.log", now.Add(-37*time.Hour)),
 
 		// 2天前的文件
-		createTestLogInfo("app-2024-01-08T15-00-00.log", now.Add(-49*time.Hour)),
+		createTestLogInfo("app_20240108150000.log", now.Add(-49*time.Hour)),
 
 		// 4天前的文件（超过3天，应该被删除）
-		createTestLogInfo("app-2024-01-06T10-00-00.log", now.Add(-97*time.Hour)),
+		createTestLogInfo("app_20240106100000.log", now.Add(-97*time.Hour)),
 	}
 
 	tests := []struct {
@@ -196,9 +196,9 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 			maxBackups: 2,
 			maxAge:     3,
 			expectedRemove: []string{
-				"app-2024-01-10T03-00-00.log", // 今天第3个文件
-				"app-2024-01-09T06-00-00.log", // 1天前第3个文件
-				"app-2024-01-06T10-00-00.log", // 超过3天
+				"app_20240110030000.log", // 今天第3个文件
+				"app_20240109060000.log", // 1天前第3个文件
+				"app_20240106100000.log", // 超过3天
 			},
 			description: "先筛选3天内文件，再每天保留最新2个",
 		},
@@ -207,12 +207,12 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 			maxBackups: 1,
 			maxAge:     2,
 			expectedRemove: []string{
-				"app-2024-01-10T06-00-00.log", // 今天第2个文件
-				"app-2024-01-10T03-00-00.log", // 今天第3个文件
-				"app-2024-01-09T12-00-00.log", // 1天前第2个文件
-				"app-2024-01-09T06-00-00.log", // 1天前第3个文件
-				"app-2024-01-08T15-00-00.log", // 超过2天
-				"app-2024-01-06T10-00-00.log", // 超过2天
+				"app_20240110060000.log", // 今天第2个文件
+				"app_20240110030000.log", // 今天第3个文件
+				"app_20240109120000.log", // 1天前第2个文件
+				"app_20240109060000.log", // 1天前第3个文件
+				"app_20240108150000.log", // 超过2天
+				"app_20240106100000.log", // 超过2天
 			},
 			description: "先筛选2天内文件，再每天保留最新1个",
 		},

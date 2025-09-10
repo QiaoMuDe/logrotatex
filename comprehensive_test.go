@@ -93,11 +93,11 @@ func TestComprehensiveLogRotation(t *testing.T) {
 
 	// 创建一些模拟的旧日志文件
 	oldFiles := []string{
-		"app_2023-01-01T10-00-00.000.log.zip",
-		"app_2023-01-02T10-00-00.000.log.zip",
-		"app_2023-01-03T10-00-00.000.log.zip",
-		"app_2023-01-04T10-00-00.000.log.zip",
-		"app_2023-01-05T10-00-00.000.log.zip",
+		"app_20230101100000.log.zip",
+		"app_20230102100000.log.zip",
+		"app_20230103100000.log.zip",
+		"app_20230104100000.log.zip",
+		"app_20230105100000.log.zip",
 	}
 
 	for _, fileName := range oldFiles {
