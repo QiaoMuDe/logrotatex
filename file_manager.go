@@ -326,7 +326,7 @@ func (l *LogRotateX) calculateRemoveList(allFiles, keepFiles []logInfo) []logInf
 	return remove
 }
 
-// fastTimeFromName 从文件名中快速解析时间戳。
+// fastTimeFromName 从文件名中快速解析时间戳（纯数字格式优化版）。
 func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, error) {
 	// 计算时间戳的起始和结束位置
 	var startPos, endPos int
@@ -339,14 +339,41 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 		endPos = len(filename) - len(ext)
 	}
 
-	// 边界检查
-	if startPos >= endPos || startPos < 0 || endPos > len(filename) {
-		return time.Time{}, fmt.Errorf("logrotatex: incorrect filename format")
+	// 增强的边界检查
+	if startPos < 0 || endPos > len(filename) || startPos >= endPos {
+		return time.Time{}, fmt.Errorf("logrotatex: invalid filename format: %s", filename)
 	}
 
-	// 直接从计算位置提取时间戳
+	// 检查时间戳长度
+	timestampLen := endPos - startPos
+	if timestampLen != expectedTimestampLen {
+		return time.Time{}, fmt.Errorf("logrotatex: invalid timestamp length %d, expected %d in file: %s",
+			timestampLen, expectedTimestampLen, filename)
+	}
+
+	// 提取时间戳字符串
 	timestampStr := filename[startPos:endPos]
 
+	// 快速验证：确保都是数字
+	if !isAllDigits(timestampStr) {
+		return time.Time{}, fmt.Errorf("logrotatex: timestamp contains non-digit characters: %s", timestampStr)
+	}
+
 	// 解析时间戳
-	return time.Parse(backupTimeFormat, timestampStr)
+	t, err := time.Parse(backupTimeFormat, timestampStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("logrotatex: failed to parse timestamp %s: %w", timestampStr, err)
+	}
+
+	return t, nil
+}
+
+// isAllDigits 快速检查字符串是否全为数字
+func isAllDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }

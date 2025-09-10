@@ -48,9 +48,9 @@ var (
 // 并使用原始文件名创建一个新的日志文件。因此，你提供给 LogRotateX 的文件名始终是"当前"的日志文件。
 //
 // 备份文件使用提供给 LogRotateX 的日志文件名，格式为 `name-timestamp.ext`，
-// 其中 name 是不带扩展名的文件名，timestamp 是日志轮转时的时间，格式为 `2006-01-02T15-04-05.000`，
+// 其中 name 是不带扩展名的文件名，timestamp 是日志轮转时的时间，格式为 `20060102150405`，
 // ext 是原始扩展名。例如，如果你的 LogRotateX.Filename 是 `/var/log/foo/server.log`，
-// 在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server-2016-11-04T18-30-00.000.log`。
+// 在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server-20161104183000.log`。
 //
 // # 清理旧日志文件
 //
@@ -59,7 +59,7 @@ var (
 // 任何编码时间戳早于 MaxAge 天的文件都会被删除，无论 MaxSize 的设置如何。
 // 请注意，时间戳中编码的时间是轮转时间，可能与该文件最后一次写入的时间不同。
 //
-// 如果 MaxSize 和 MaxAge 都为 0，则不会删除任何旧日志文件。
+// 如果 MaxFiles 和 MaxAge 都为 0，则不会删除任何旧日志文件。
 type LogRotateX struct {
 	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。
 	// 如果该值为空，则使用 os.TempDir() 下的 <程序名>_logrotatex.log。

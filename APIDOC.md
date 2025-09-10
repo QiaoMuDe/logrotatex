@@ -85,7 +85,7 @@ type LogRotateX struct {
 备份文件使用提供给 LogRotateX 的日志文件名，格式为 `name-timestamp.ext`，其中：
 
 - `name` 是不带扩展名的文件名
-- `timestamp` 是日志轮转时的时间，格式为 `2006-01-02T15-04-05.000`
+- `timestamp` 是日志轮转时的时间，格式为 `20060102150405`
 - `ext` 是原始扩展名
 
 **示例**: 如果你的 `LogRotateX.Filename` 是 `/var/log/foo/server.log`，在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server-2016-11-04T18-30-00.000.log`。

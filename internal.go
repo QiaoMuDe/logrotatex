@@ -13,8 +13,13 @@ import (
 )
 
 const (
-	// backupTimeFormat 是备份文件的时间戳格式, 用于在文件名中嵌入时间信息。
-	backupTimeFormat = "2006-01-02T15-04-05.000"
+	// backupTimeFormat 是备份文件的时间戳格式，使用纯数字格式提高性能和兼容性。
+	// 格式: YYYYMMDDHHMMSS (年月日时分秒)
+	backupTimeFormat = "20060102150405"
+
+	// expectedTimestampLen 是时间戳的长度, 用于验证文件名中的时间戳是否有效。
+	// 纯数字时间戳长度: "20060102150405" = 14字符
+	expectedTimestampLen = 14
 
 	// compressSuffix 是压缩文件的后缀, 用于标识已压缩的日志文件。
 	compressSuffix = ".zip"

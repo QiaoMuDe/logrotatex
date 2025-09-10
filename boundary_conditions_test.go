@@ -237,7 +237,7 @@ func TestBoundaryConditions(t *testing.T) {
 
 		// 创建一些旧的日志文件
 		oldTime := time.Now().AddDate(0, 0, -10) // 10天前
-		oldFileName := fmt.Sprintf("test-%s.log", oldTime.Format("2006-01-02T15-04-05.000"))
+		oldFileName := fmt.Sprintf("test_%s.log", oldTime.Format("20060102150405"))
 		oldFilePath := filepath.Join(dir, oldFileName)
 
 		err := os.WriteFile(oldFilePath, []byte("old log data"), defaultFilePerm)
@@ -602,7 +602,7 @@ func TestEdgeCases(t *testing.T) {
 		}()
 
 		// 在Windows上某些字符是不允许的，所以我们使用相对安全的特殊字符
-		specialName := "test-log_file.2025.log"
+		specialName := "test_log_file.2025.log"
 
 		l := &LogRotateX{
 			Filename: filepath.Join(dir, specialName),
@@ -624,7 +624,7 @@ func TestEdgeCases(t *testing.T) {
 // 辅助函数
 func makeBoundaryTempDir(name string, t *testing.T) string {
 	// 根据测试名称和当前时间生成目录名
-	dir := time.Now().Format(name + "_" + "2006-01-02T15-04-05.000")
+	dir := time.Now().Format(name + "_" + "20060102150405")
 	// 将生成的目录名与logs目录拼接，得到完整的目录路径
 	dir = filepath.Join("logs", dir)
 	err := os.MkdirAll(dir, 0755)
