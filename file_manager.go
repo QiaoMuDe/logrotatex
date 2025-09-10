@@ -22,8 +22,8 @@ import (
 // 返回值:
 //   - error: 操作失败时返回错误，否则返回 nil
 func (l *LogRotateX) cleanupSync() error {
-	// 快速路径: 如果没有设置备份保留数量, 备份保留天数, 启用压缩功能, 则直接返回
-	if l.MaxBackups == 0 && l.MaxAge == 0 && !l.Compress {
+	// 快速路径: 如果没有设置保留数量, 保留天数, 则直接返回
+	if l.MaxBackups <= 0 && l.MaxAge <= 0 {
 		return nil
 	}
 
@@ -66,41 +66,45 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	var errors []error
 
 	// 执行文件移除操作
-	for _, f := range remove {
-		// 合并路径
-		filePath := filepath.Join(l.dir(), f.Name())
+	if len(remove) > 0 {
+		for _, f := range remove {
+			// 合并路径
+			filePath := filepath.Join(l.dir(), f.Name())
 
-		// 移除文件
-		if err := os.Remove(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: failed to remove log file %s: %w", filePath, err))
+			// 移除文件
+			if err := os.Remove(filePath); err != nil {
+				errors = append(errors, fmt.Errorf("logrotatex: failed to remove log file %s: %w", filePath, err))
+			}
 		}
 	}
 
 	// 执行文件压缩操作
-	for _, f := range compress {
-		// 合并路径
-		filePath := filepath.Join(l.dir(), f.Name())
-		// 合并压缩文件名
-		compressPath := filePath + compressSuffix
+	if len(compress) > 0 {
+		for _, f := range compress {
+			// 合并路径
+			filePath := filepath.Join(l.dir(), f.Name())
+			// 合并压缩文件名
+			compressPath := filePath + compressSuffix
 
-		// 创建压缩配置
-		opts := comprx.Options{
-			CompressionLevel:      types.CompressionLevelDefault, // 默认压缩级别
-			OverwriteExisting:     true,                          // 覆盖已存在的压缩文件
-			ProgressEnabled:       false,                         // 不显示进度条
-			ProgressStyle:         types.ProgressStyleDefault,    // 默认进度条样式
-			DisablePathValidation: false,                         // 禁用路径验证
-		}
+			// 创建压缩配置
+			opts := comprx.Options{
+				CompressionLevel:      types.CompressionLevelDefault, // 默认压缩级别
+				OverwriteExisting:     true,                          // 覆盖已存在的压缩文件
+				ProgressEnabled:       false,                         // 不显示进度条
+				ProgressStyle:         types.ProgressStyleDefault,    // 默认进度条样式
+				DisablePathValidation: false,                         // 禁用路径验证
+			}
 
-		// 压缩文件
-		if err := comprx.PackOptions(compressPath, filePath, opts); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: failed to compress log file %s: %w", filePath, err))
-			continue // 压缩失败就跳过，保留原文件
-		}
+			// 压缩文件
+			if err := comprx.PackOptions(compressPath, filePath, opts); err != nil {
+				errors = append(errors, fmt.Errorf("logrotatex: failed to compress log file %s: %w", filePath, err))
+				continue // 压缩失败就跳过，保留原文件
+			}
 
-		// 删除原文件
-		if err := os.Remove(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: failed to delete original file %s: %w", filePath, err))
+			// 删除原文件
+			if err := os.Remove(filePath); err != nil {
+				errors = append(errors, fmt.Errorf("logrotatex: failed to delete original file %s: %w", filePath, err))
+			}
 		}
 	}
 
