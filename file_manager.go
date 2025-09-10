@@ -84,7 +84,7 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 			// 合并路径
 			filePath := filepath.Join(l.dir(), f.Name())
 			// 合并压缩文件名
-			compressPath := filePath + compressSuffix
+			compressPath := filepath.Join(l.dir(), fmt.Sprintf("%s%s", strings.TrimSuffix(f.Name(), filepath.Ext(f.Name())), compressSuffix))
 
 			// 创建压缩配置
 			opts := comprx.Options{
@@ -152,7 +152,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	logFiles := make([]logInfo, 0, estimatedCapacity)
 	timestampSet := make(map[time.Time]bool, estimatedCapacity)
 
-	// 单次扫描：O(n)时间复杂度
+	// 单次扫描: O(n)时间复杂度
 	for _, f := range files {
 		// 快速过滤：跳过目录和当前日志文件
 		if f.IsDir() || f.Name() == currentFileName {
