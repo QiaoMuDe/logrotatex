@@ -42,7 +42,7 @@ const (
 type logInfo struct {
 	// timestamp 是从文件名中解析出的时间戳
 	timestamp time.Time
-	// FileInfo 包含文件的基本信息（大小、修改时间等）
+	// FileInfo 包含文件的基本信息( 大小、修改时间等)
 	os.FileInfo
 }
 
@@ -115,7 +115,7 @@ func (l *LogRotateX) dir() string {
 //
 // 返回值:
 //   - prefix: 文件名前缀
-//   - ext: 文件扩展名（包含点号）
+//   - ext: 文件扩展名( 包含点号)
 func (l *LogRotateX) prefixAndExt() (prefix, ext string) {
 	filename := filepath.Base(l.filename())    // 获取日志文件的基本名称
 	ext = filepath.Ext(filename)               // 提取文件的扩展名
@@ -214,7 +214,7 @@ func (l *LogRotateX) openNew() error {
 		mode = info.Mode()
 
 		// 将现有的日志文件重命名为备份文件
-		newname := backupName(name, l.LocalTime)
+		newname := genTimeName(name, l.LocalTime)
 		if renameErr := os.Rename(name, newname); renameErr != nil {
 			return fmt.Errorf("logrotatex: unable to rename log file: %w", renameErr)
 		}
@@ -226,7 +226,7 @@ func (l *LogRotateX) openNew() error {
 	}
 
 	// 使用 truncate 打开文件, 确保文件存在且可写入。
-	// 如果文件已存在（可能是其他进程创建的）, 则清空内容。
+	// 如果文件已存在( 可能是其他进程创建的), 则清空内容。
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("logrotatex: unable to open new log file: %w", err)
@@ -235,11 +235,11 @@ func (l *LogRotateX) openNew() error {
 	// 先保存旧文件引用
 	oldFile := l.file
 
-	// 立即设置新文件状态（确保状态一致性）
+	// 立即设置新文件状态( 确保状态一致性)
 	l.file = f
 	l.size = 0
 
-	// 然后尝试关闭旧文件（失败也不影响新文件的使用）
+	// 然后尝试关闭旧文件( 失败也不影响新文件的使用)
 	if oldFile != nil {
 		if closeErr := oldFile.Close(); closeErr != nil {
 			// 记录错误但不返回失败，因为新文件已经可用
@@ -250,30 +250,31 @@ func (l *LogRotateX) openNew() error {
 	return nil
 }
 
-// backupName 根据原始文件名生成带时间戳的备份文件名。
+// genTimeName 根据原始文件名生成带时间戳的备份文件名
 //
 // 参数:
 //   - name: 原始文件名
-//   - local: 是否使用本地时间，false 使用 UTC 时间
+//   - local: 是否使用本地时间, false 使用 UTC 时间
 //
 // 返回值:
 //   - string: 带时间戳的备份文件名
-func backupName(name string, local bool) string {
+func genTimeName(name string, local bool) string {
 	// 获取文件所在的目录
 	dir := filepath.Dir(name)
-	// 获取文件的基本名称（包含扩展名）
+
+	// 获取文件的基本名称( 包含扩展名)
 	filename := filepath.Base(name)
 
 	// 更安全地处理文件名和扩展名
 	ext := filepath.Ext(filename)
 	prefix := strings.TrimSuffix(filename, ext)
 
-	// 如果文件名以点号结尾但没有扩展名（例如"logfile."），确保正确处理
+	// 如果文件名以点号结尾但没有扩展名( 例如"logfile.")，确保正确处理
 	if len(ext) > 0 && ext == filename {
-		// 处理纯扩展名文件（例如".gitignore"）
+		// 处理纯扩展名文件( 例如".gitignore")
 		prefix = ""
 	} else if len(prefix) == 0 && len(ext) > 0 {
-		// 处理以点号开头的文件（例如".logfile"）
+		// 处理以点号开头的文件( 例如".logfile")
 		prefix = ext
 		ext = ""
 	}
@@ -288,7 +289,7 @@ func backupName(name string, local bool) string {
 	// 格式化时间戳
 	timestamp := t.Format(backupTimeFormat)
 
-	// 生成新的备份文件名
+	// 生成新的文件名
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
 
@@ -340,7 +341,7 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	l.file = file
 	l.size = info.Size()
 
-	// 然后尝试关闭旧文件（失败也不影响新文件的使用）
+	// 然后尝试关闭旧文件( 失败也不影响新文件的使用)
 	if oldFile != nil {
 		if closeErr := oldFile.Close(); closeErr != nil {
 			// 记录错误但不返回失败，因为新文件已经可用

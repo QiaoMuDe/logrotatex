@@ -83,8 +83,9 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 		for _, f := range compress {
 			// 合并路径
 			filePath := filepath.Join(l.dir(), f.Name())
-			// 合并压缩文件名
-			compressPath := filepath.Join(l.dir(), fmt.Sprintf("%s%s", strings.TrimSuffix(f.Name(), filepath.Ext(f.Name())), compressSuffix))
+			// 压缩文件名生成
+			baseName := strings.TrimSuffix(f.Name(), filepath.Ext(f.Name()))
+			compressPath := filepath.Join(l.dir(), baseName+compressSuffix)
 
 			// 创建压缩配置
 			opts := comprx.Options{
@@ -370,8 +371,14 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 
 // isAllDigits 快速检查字符串是否全为数字
 func isAllDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
+	// 空字符串被认为不是全数字
+	if len(s) == 0 {
+		return false
+	}
+
+	// 检查每个字符是否为数字
+	for _, r := range s {
+		if r < '0' || r > '9' {
 			return false
 		}
 	}

@@ -82,13 +82,13 @@ type LogRotateX struct {
 
 #### 备份文件命名规则
 
-备份文件使用提供给 LogRotateX 的日志文件名，格式为 `name-timestamp.ext`，其中：
+备份文件使用提供给 LogRotateX 的日志文件名，格式为 `name_timestamp.ext`，其中：
 
 - `name` 是不带扩展名的文件名
 - `timestamp` 是日志轮转时的时间，格式为 `20060102150405`
 - `ext` 是原始扩展名
 
-**示例**: 如果你的 `LogRotateX.Filename` 是 `/var/log/foo/server.log`，在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server-2016-11-04T18-30-00.000.log`。
+**示例**: 如果你的 `LogRotateX.Filename` 是 `/var/log/foo/server.log`，在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server_20161104183000.log`。
 
 #### 清理旧日志文件
 
@@ -198,27 +198,11 @@ func (l *LogRotateX) Close() error
 
 **描述**: 关闭日志记录器。
 
-该方法会关闭当前打开的日志文件，释放相关资源，并停止后台goroutine。此操作是线程安全的，使用 `sync.Once` 防止重复调用，并通过上下文控制超时。在异常情况下确保文件句柄正确关闭，防止资源泄漏。
+该方法会关闭当前打开的日志文件，释放相关资源。
 
 #### 返回值
 
 - `error`: 如果在关闭文件时发生错误，则返回该错误；否则返回 nil
-
----
-
-### Rotate
-
-```go
-func (l *LogRotateX) Rotate() error
-```
-
-**描述**: 执行日志文件的轮转操作。
-
-该方法会关闭当前日志文件，将其重命名为带有时间戳的备份文件，然后创建一个新的日志文件用于后续写入。此操作是线程安全的，使用互斥锁保护。
-
-#### 返回值
-
-- `error`: 如果在执行轮转操作时发生错误，则返回该错误；否则返回 nil
 
 ---
 
