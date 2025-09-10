@@ -5,16 +5,16 @@
 package logrotatex
 
 import (
-	"archive/zip"
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"gitee.com/MM-Q/comprx"
+	"gitee.com/MM-Q/comprx/types"
 )
 
 // millRunOnce 执行一次日志文件的压缩和清理操作。
@@ -95,9 +95,23 @@ func (l *LogRotateX) millRunOnce() error {
 		// 合并压缩文件名
 		compressPath := filePath + compressSuffix
 
+		// 创建压缩配置
+		opts := comprx.Options{
+			CompressionLevel:      types.CompressionLevelDefault, // 默认压缩级别
+			OverwriteExisting:     true,                          // 覆盖已存在的压缩文件
+			ProgressEnabled:       false,                         // 不显示进度条
+			ProgressStyle:         types.ProgressStyleDefault,    // 默认进度条样式
+			DisablePathValidation: false,                         // 禁用路径验证
+		}
+
 		// 压缩文件
-		if err := compressLogFile(filePath, compressPath); err != nil {
+		if err := comprx.PackOptions(compressPath, filePath, opts); err != nil {
 			errors = append(errors, fmt.Errorf("logrotatex: 压缩日志文件 %s 失败: %w", filePath, err))
+		}
+
+		// 删除压缩文件
+		if err := os.Remove(filePath); err != nil {
+			errors = append(errors, fmt.Errorf("logrotatex: 删除压缩文件 %s 失败: %w", compressPath, err))
 		}
 	}
 
@@ -320,116 +334,4 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 	ts := filename[startPos:endPos]
 	// 解析时间戳
 	return time.Parse(backupTimeFormat, ts)
-}
-
-// compressLogFile 压缩指定的日志文件，成功后删除原文件。
-//
-// 参数:
-//   - src: 源日志文件路径
-//   - dst: 目标压缩文件路径
-//
-// 返回值:
-//   - error: 压缩失败时返回错误，否则返回 nil
-func compressLogFile(src, dst string) (err error) {
-	// 获取源日志文件的状态信息（在打开文件之前）
-	fi, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("logrotatex: 无法获取日志文件的状态信息: %w", err)
-	}
-
-	// 打开源日志文件
-	f, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("logrotatex: 无法打开日志文件: %w", err)
-	}
-	// 使用defer确保源文件在函数退出时一定会被关闭
-	defer func() { _ = f.Close() }()
-
-	// 创建目标ZIP文件
-	zipFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("logrotatex: 创建压缩文件失败: %w", err)
-	}
-	// 使用defer确保ZIP文件在函数退出时一定会被关闭
-	defer func() { _ = zipFile.Close() }()
-
-	// 创建ZIP写入器
-	zipWriter := zip.NewWriter(zipFile)
-	// 使用defer确保ZIP写入器在函数退出时一定会被关闭
-	defer func() { _ = zipWriter.Close() }()
-
-	// 设置目标压缩文件的所有者信息
-	if chownErr := chown(dst, fi); chownErr != nil {
-		// 确保所有资源都已关闭
-		_ = f.Close()
-		_ = zipWriter.Close()
-		_ = zipFile.Close()
-		// 清理未完成的文件
-		_ = os.Remove(dst)
-		return fmt.Errorf("logrotatex: 无法设置压缩日志文件的所有者: %w", chownErr)
-	}
-
-	// 为源文件创建ZIP文件头
-	header, err := zip.FileInfoHeader(fi)
-	if err != nil {
-		// 确保所有资源都已关闭
-		_ = f.Close()
-		_ = zipWriter.Close()
-		_ = zipFile.Close()
-		// 清理未完成的文件
-		_ = os.Remove(dst)
-		return fmt.Errorf("logrotatex: 创建ZIP文件头失败: %w", err)
-	}
-
-	// 设置文件头的名称为源文件名
-	header.Name = filepath.Base(src)
-	// 设置压缩方法为Deflate
-	header.Method = zip.Deflate
-
-	// 创建ZIP文件写入器
-	fileWriter, err := zipWriter.CreateHeader(header)
-	if err != nil {
-		// 确保所有资源都已关闭
-		_ = f.Close()
-		_ = zipWriter.Close()
-		_ = zipFile.Close()
-		// 清理未完成的文件
-		_ = os.Remove(dst)
-		return fmt.Errorf("logrotatex: 创建ZIP文件写入器失败: %w", err)
-	}
-
-	// 根据文件大小设置缓冲区大小
-	bufferSize := getBufferSize(fi.Size())
-
-	// 创建带缓冲的读取器
-	bufferedReader := bufio.NewReaderSize(f, bufferSize)
-
-	// 使用缓冲区进行文件复制，提高性能
-	buffer := make([]byte, bufferSize)
-	if _, err := io.CopyBuffer(fileWriter, bufferedReader, buffer); err != nil {
-		// 确保所有资源都已关闭
-		_ = f.Close()
-		_ = zipWriter.Close()
-		_ = zipFile.Close()
-		// 清理未完成的文件
-		_ = os.Remove(dst)
-		return fmt.Errorf("logrotatex: 写入ZIP文件失败: %w", err)
-	}
-
-	// 确保所有资源都已关闭
-	_ = f.Close()
-	_ = zipWriter.Close()
-	_ = zipFile.Close()
-
-	// 所有写入操作完成后，删除原始未压缩的日志文件
-	// 注意：这里不能使用defer，因为需要在所有文件句柄关闭后才能删除
-	// defer函数会在return之前执行，此时文件句柄还未关闭
-	// 所以我们在defer中处理删除操作
-	defer func() {
-		if err == nil {
-			_ = os.Remove(src)
-		}
-	}()
-
-	return nil
 }

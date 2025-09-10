@@ -5,8 +5,6 @@
 package logrotatex
 
 import (
-	"archive/zip"
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -126,69 +124,6 @@ func TestComprehensiveLogRotation(t *testing.T) {
 		}
 
 		t.Logf("找到 %d 个备份文件: %v", len(backupFiles), backupFiles)
-	}
-
-	// 第四阶段：测试压缩功能验证
-	t.Log("=== 第四阶段：测试压缩功能验证 ===")
-
-	// 创建一个测试用的压缩文件来验证压缩功能
-	testLogContent := "测试压缩功能的日志内容\n这是第二行\n这是第三行\n"
-	testLogPath := filepath.Join(dir, "test_compress.log")
-	err = os.WriteFile(testLogPath, []byte(testLogContent), 0644)
-	if err != nil {
-		t.Fatalf("创建测试文件失败: %v", err)
-	}
-
-	// 测试压缩函数
-	compressedPath := testLogPath + ".zip"
-	err = compressLogFile(testLogPath, compressedPath)
-	if err != nil {
-		t.Fatalf("压缩文件失败: %v", err)
-	}
-
-	// 验证压缩文件
-	if _, err := os.Stat(compressedPath); os.IsNotExist(err) {
-		t.Fatal("压缩文件未被创建")
-	}
-
-	// 验证原文件被删除
-	if _, err := os.Stat(testLogPath); !os.IsNotExist(err) {
-		t.Error("原文件应该被删除")
-	}
-
-	// 验证压缩文件内容
-	zipData, err := os.ReadFile(compressedPath)
-	if err != nil {
-		t.Fatalf("读取压缩文件失败: %v", err)
-	}
-
-	zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
-	if err != nil {
-		t.Fatalf("解析压缩文件失败: %v", err)
-	}
-
-	if len(zipReader.File) != 1 {
-		t.Errorf("压缩文件应该包含1个文件，实际包含%d个", len(zipReader.File))
-	} else {
-		zipFile := zipReader.File[0]
-		rc, err := zipFile.Open()
-		if err != nil {
-			t.Fatalf("打开压缩文件内容失败: %v", err)
-		}
-		defer func() { _ = rc.Close() }()
-
-		var buf bytes.Buffer
-		_, err = buf.ReadFrom(rc)
-		if err != nil {
-			t.Fatalf("读取压缩文件内容失败: %v", err)
-		}
-
-		decompressedContent := buf.String()
-		if decompressedContent != testLogContent {
-			t.Errorf("解压后内容不匹配\n期望: %q\n实际: %q", testLogContent, decompressedContent)
-		} else {
-			t.Log("压缩和解压功能验证成功")
-		}
 	}
 
 	// 第五阶段：测试文件清理逻辑
