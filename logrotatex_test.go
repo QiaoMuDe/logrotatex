@@ -262,7 +262,7 @@ func TestRotate(t *testing.T) {
 	l := &LogRotateX{
 		Filename: filename,
 		MaxSize:  1,
-		MaxFiles:  100, // megabytes
+		MaxFiles: 100, // megabytes
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -283,11 +283,6 @@ func TestRotate(t *testing.T) {
 	// 模拟时间前进
 	newFakeTime()
 
-	// 触发日志轮转
-	err = l.Rotate()
-	// 验证日志轮转操作是否成功
-	isNil(err, t)
-
 	// 我们需要等待一小段时间，因为文件删除操作在不同的 goroutine 中执行
 	<-time.After(10 * time.Millisecond)
 
@@ -301,11 +296,6 @@ func TestRotate(t *testing.T) {
 	fileCount(dir, 2, t)
 	// 模拟时间前进
 	newFakeTime()
-
-	// 再次触发日志轮转
-	err = l.Rotate()
-	// 验证日志轮转操作是否成功
-	isNil(err, t)
 
 	// 我们需要等待一小段时间，因为文件删除操作在不同的 goroutine 中执行
 	<-time.After(10 * time.Millisecond)
@@ -381,11 +371,6 @@ func TestCompressOnRotate(t *testing.T) {
 
 	// 模拟时间前进
 	newFakeTime()
-
-	// 触发日志轮转
-	err = l.Rotate()
-	// 验证日志轮转操作是否成功
-	isNil(err, t)
 
 	// 旧的日志文件应该被移到一边，主日志文件应该为空
 	existsWithContent(filename, []byte{}, t)
@@ -688,7 +673,7 @@ func TestLogRunInfo(t *testing.T) {
 	logger := &LogRotateX{
 		Filename: filepath.Join(dir, "test.log"),
 		MaxSize:  1,     // 1KB，容易触发轮转
-		MaxFiles:  2,     // 最多保留2个备份文件
+		MaxFiles: 2,     // 最多保留2个备份文件
 		Compress: false, // 先不启用压缩，避免Windows文件句柄问题
 	}
 	defer func() { _ = logger.Close() }()
@@ -777,7 +762,7 @@ func TestLogRunInfo(t *testing.T) {
 	compressLogger := &LogRotateX{
 		Filename: filepath.Join(dir, "compress_test.log"),
 		MaxSize:  1,    // 1KB
-		MaxFiles:  1,    // 只保留1个备份
+		MaxFiles: 1,    // 只保留1个备份
 		Compress: true, // 启用压缩
 	}
 	defer func() { _ = compressLogger.Close() }()

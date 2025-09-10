@@ -61,37 +61,35 @@ var (
 //
 // 如果 MaxSize 和 MaxAge 都为 0，则不会删除任何旧日志文件。
 type LogRotateX struct {
-	/* ========== 配置字段 ========== */
-	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
+	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。
+	// 如果该值为空，则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
 	Filename string `json:"filename" yaml:"filename"`
-	// MaxSize 最大单个日志文件的大小（以 MB 为单位）。默认值为 10 MB。
+
+	// MaxSize 是单个日志文件的最大大小（以 MB 为单位）。默认值为 10 MB。
+	// 超过此大小的日志文件将被轮转。
 	MaxSize int `json:"maxsize" yaml:"maxsize"`
-	// MaxAge 保留日志文件的天数，超过此天数的文件将被删除。默认值为 0，表示不按时间删除旧日志文件。
+
+	// MaxAge 是保留日志文件的天数，超过此天数的文件将被删除。
+	// 默认值为 0，表示不按时间删除旧日志文件。
 	MaxAge int `json:"maxage" yaml:"maxage"`
-	// MaxFiles 最大保留的历史日志文件数量，超过此数量的旧文件将被删除。默认值为 0，表示不限制文件数量。
+
+	// MaxFiles 是最大保留的历史日志文件数量，超过此数量的旧文件将被删除。
+	// 默认值为 0，表示不限制文件数量。
 	MaxFiles int `json:"maxfiles" yaml:"maxfiles"`
 
-	// ========== 行为选项 ==========
-	// LocalTime 决定是否使用本地时间记录日志文件的轮转时间。默认使用 UTC 时间。
+	// LocalTime 决定是否使用本地时间记录日志文件的轮转时间。
+	// 默认使用 UTC 时间。
 	LocalTime bool `json:"localtime" yaml:"localtime"`
-	// Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。默认不进行压缩。
+
+	// Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。
+	// 默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
-	// filePerm 是日志文件的权限模式。默认值为 0600。
-	filePerm os.FileMode
 
-	/* ========== 运行时状态 ========== */
-	// size 是当前日志文件的大小（以字节为单位）。
-	size int64
-	// file 是当前打开的日志文件。
-	file *os.File
-
-	/* ========== 并发控制 ========== */
-	// mu 是互斥锁, 用于保护文件操作。
-	mu sync.Mutex
-
-	/* ========== 生命周期控制 ========== */
-	// closeOnce 是一个 sync.Once, 用于确保只执行一次关闭操作
-	closeOnce sync.Once
+	filePerm  os.FileMode // filePerm 是日志文件的权限模式。默认值为 0600
+	size      int64       // size 是当前日志文件的大小（以字节为单位）
+	file      *os.File    // file 是当前打开的日志文件
+	mu        sync.Mutex  // mu 是互斥锁，用于保护文件操作
+	closeOnce sync.Once   // closeOnce 是一个 sync.Once，用于确保只执行一次关闭操作
 }
 
 // New 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
@@ -207,20 +205,6 @@ func (l *LogRotateX) Close() error {
 	return closeErr
 }
 
-// Rotate 手动执行日志文件轮转操作。
-// 关闭当前文件，重命名为备份文件，创建新文件。
-//
-// 返回值:
-//   - error: 轮转失败时返回错误，否则返回 nil
-func (l *LogRotateX) Rotate() error {
-	// 使用互斥锁来确保日志轮转操作的线程安全。
-	l.mu.Lock()
-	// 在函数结束时自动解锁, 以确保即使在发生错误时也能正确释放锁。
-	defer l.mu.Unlock()
-	// 调用具体的日志轮转实现方法 rotate, 并返回其结果。
-	return l.rotate()
-}
-
 // Sync 强制将缓冲区数据同步到磁盘。
 //
 // 返回值:
@@ -238,4 +222,3 @@ func (l *LogRotateX) Sync() error {
 	// 如果文件未打开，则无需同步，直接返回 nil
 	return nil
 }
-

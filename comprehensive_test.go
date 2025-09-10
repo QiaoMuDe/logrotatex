@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 )
 
 // TestComprehensiveLogRotation 全面测试日志轮转功能
@@ -42,7 +40,7 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	logger := &LogRotateX{
 		Filename: filepath.Join(dir, "app.log"),
 		MaxSize:  2,    // 2KB
-		MaxFiles:  3,    // 最多保留3个备份
+		MaxFiles: 3,    // 最多保留3个备份
 		MaxAge:   7,    // 最多保留7天
 		Compress: true, // 启用压缩
 	}
@@ -88,42 +86,6 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	}
 	if !logger.Compress {
 		t.Error("期望 Compress 为 true")
-	}
-
-	// 第三阶段：测试手动轮转
-	t.Log("=== 第三阶段：测试手动轮转 ===")
-
-	// 先关闭当前文件，避免 Windows 文件锁定问题
-	err = logger.Close()
-	if err != nil {
-		t.Fatalf("关闭日志文件失败: %v", err)
-	}
-
-	// 手动执行轮转
-	err = logger.Rotate()
-	if err != nil {
-		t.Logf("手动轮转失败（这在 Windows 上可能是正常的）: %v", err)
-		// 在 Windows 上轮转可能失败，我们继续测试其他功能
-	} else {
-		t.Log("手动轮转成功")
-
-		// 等待压缩完成
-		time.Sleep(100 * time.Millisecond)
-
-		// 检查是否生成了备份文件
-		files, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("读取目录失败: %v", err)
-		}
-
-		var backupFiles []string
-		for _, file := range files {
-			if strings.Contains(file.Name(), "_") && strings.HasSuffix(file.Name(), ".zip") {
-				backupFiles = append(backupFiles, file.Name())
-			}
-		}
-
-		t.Logf("找到 %d 个备份文件: %v", len(backupFiles), backupFiles)
 	}
 
 	// 第五阶段：测试文件清理逻辑

@@ -342,7 +342,7 @@ func TestFileScanning_Performance(t *testing.T) {
 	logger := &LogRotateX{
 		Filename: logPath,
 		MaxSize:  1,
-		MaxFiles:  10,
+		MaxFiles: 10,
 		MaxAge:   30,
 	}
 
@@ -376,4 +376,39 @@ func TestFileScanning_Performance(t *testing.T) {
 			t.Errorf("文件扫描性能不达标，期望 < 100ms，实际: %v", avgTime)
 		}
 	})
+}
+
+// TestMultipleCloseOperations 测试多次关闭操作
+func TestMultipleCloseOperations(t *testing.T) {
+	logsDir := "logs"
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("创建logs目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(logsDir) }()
+	logFile := filepath.Join(logsDir, "test_multiple_close.log")
+
+	logger := &LogRotateX{
+		Filename:  logFile,
+		MaxSize:   10,
+		MaxFiles:  3,
+		MaxAge:    1,
+		LocalTime: true,
+		Compress:  false,
+	}
+
+	// 写入一些数据
+	_, writeErr := logger.Write([]byte("测试数据\n"))
+	if writeErr != nil {
+		t.Fatalf("写入失败: %v", writeErr)
+	}
+
+	// 多次关闭应该是安全的
+	for i := 0; i < 5; i++ {
+		err := logger.Close()
+		if err != nil && i == 0 {
+			t.Fatalf("首次关闭失败: %v", err)
+		}
+		// 后续关闭应该是无害的
+	}
 }

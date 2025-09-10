@@ -82,7 +82,7 @@ func TestBoundaryConditions(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  1, // 1MB = 1048576 bytes
-			MaxFiles:  1,
+			MaxFiles: 1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -142,7 +142,7 @@ func TestBoundaryConditions(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  1, // 1MB
-			MaxFiles:  2,
+			MaxFiles: 2,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -176,7 +176,7 @@ func TestBoundaryConditions(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  1, // 1MB
-			MaxFiles:  0, // 不限制备份数量
+			MaxFiles: 0, // 不限制备份数量
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -379,7 +379,7 @@ func TestErrorPaths(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  1,
-			MaxFiles:  1,
+			MaxFiles: 1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -414,7 +414,7 @@ func TestConcurrentScenarios(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  1, // 1MB
-			MaxFiles:  5,
+			MaxFiles: 5,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -471,76 +471,6 @@ func TestConcurrentScenarios(t *testing.T) {
 		expectedMinSize := int64(numGoroutines * writesPerGoroutine * 100) // 大致估算
 		if totalSize < expectedMinSize {
 			t.Errorf("总文件大小 %d 小于期望的最小值 %d", totalSize, expectedMinSize)
-		}
-	})
-
-	t.Run("并发写入和轮转", func(t *testing.T) {
-		dir := makeBoundaryTempDir("TestConcurrentScenarios_WriteAndRotate", t)
-		defer func() {
-			if err := os.RemoveAll(dir); err != nil {
-				t.Logf("清理临时目录失败: %v", err)
-			}
-		}()
-
-		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
-			MaxFiles:  3,
-		}
-		defer func() {
-			if err := l.Close(); err != nil {
-				t.Logf("关闭日志文件失败: %v", err)
-			}
-		}()
-
-		var wg sync.WaitGroup
-		stopCh := make(chan struct{})
-
-		// 启动写入goroutine
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			counter := 0
-			for {
-				select {
-				case <-stopCh:
-					return
-				default:
-					data := fmt.Sprintf("continuous-write-%d: %s\n",
-						counter, strings.Repeat("x", 1000))
-					_, _ = l.Write([]byte(data))
-					counter++
-					time.Sleep(time.Millisecond)
-				}
-			}
-		}()
-
-		// 启动手动轮转goroutine
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 5; i++ {
-				time.Sleep(100 * time.Millisecond)
-				err := l.Rotate()
-				if err != nil {
-					t.Errorf("手动轮转失败: %v", err)
-				}
-			}
-		}()
-
-		// 运行2秒后停止
-		time.Sleep(2 * time.Second)
-		close(stopCh)
-		wg.Wait()
-
-		// 验证文件系统状态
-		files, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("读取目录失败: %v", err)
-		}
-
-		if len(files) == 0 {
-			t.Error("应该至少有一个日志文件")
 		}
 	})
 
@@ -622,7 +552,7 @@ func TestEdgeCases(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  -1, // 负数，应该使用默认值
-			MaxFiles:  -1, // 负数
+			MaxFiles: -1, // 负数
 			MaxAge:   -1, // 负数
 		}
 		defer func() {
@@ -648,7 +578,7 @@ func TestEdgeCases(t *testing.T) {
 		l := &LogRotateX{
 			Filename: boundaryLogFile(dir),
 			MaxSize:  999999, // 极大值
-			MaxFiles:  999999, // 极大值
+			MaxFiles: 999999, // 极大值
 			MaxAge:   999999, // 极大值
 		}
 		defer func() {

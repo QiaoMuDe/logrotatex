@@ -44,26 +44,29 @@ Package logrotatex 提供了一个日志轮转功能的实现，用于管理日�
 
 ```go
 type LogRotateX struct {
-    // ========== 配置字段 ==========
     // Filename 是写入日志的文件。备份日志文件将保留在同一目录中。
-    // 如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
-    Filename string `json:"filename" yaml:"filename"`
-
-    // MaxSize 最大单个日志文件的大小（以 MB 为单位）。默认值为 10 MB。
-    MaxSize int `json:"maxsize" yaml:"maxsize"`
-
-    // MaxAge 最大保留日志文件的天数。默认为 0, 表示不删除旧日志文件。
-    MaxAge int `json:"maxage" yaml:"maxage"`
-
-    // MaxFiles 最大保留的历史日志文件数量，超过此数量的旧文件将被删除。默认为 0，表示不限制文件数量。
-    MaxFiles int `json:"maxfiles" yaml:"maxfiles"`
-
-    // ========== 行为选项 ==========
-    // LocalTime 决定是否使用本地时间记录日志文件的轮转时间。默认使用 UTC 时间。
-    LocalTime bool `json:"localtime" yaml:"localtime"`
-
-    // Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。默认不进行压缩。
-    Compress bool `json:"compress" yaml:"compress"`
+	  // 如果该值为空，则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
+	  Filename string `json:"filename" yaml:"filename"`
+  
+	  // MaxSize 是单个日志文件的最大大小（以 MB 为单位）。默认值为 10 MB。
+	  // 超过此大小的日志文件将被轮转。
+	  MaxSize int `json:"maxsize" yaml:"maxsize"`
+  
+	  // MaxAge 是保留日志文件的天数，超过此天数的文件将被删除。
+	  // 默认值为 0，表示不按时间删除旧日志文件。
+	  MaxAge int `json:"maxage" yaml:"maxage"`
+  
+	  // MaxFiles 是最大保留的历史日志文件数量，超过此数量的旧文件将被删除。
+	  // 默认值为 0，表示不限制文件数量。
+	  MaxFiles int `json:"maxfiles" yaml:"maxfiles"`
+  
+	  // LocalTime 决定是否使用本地时间记录日志文件的轮转时间。
+	  // 默认使用 UTC 时间。
+	  LocalTime bool `json:"localtime" yaml:"localtime"`
+  
+	  // Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。
+	  // 默认不进行压缩。
+	  Compress bool `json:"compress" yaml:"compress"`
 
     // Has unexported fields.
 }
@@ -238,72 +241,6 @@ func (l *LogRotateX) Sync() error
 #### 返回值
 
 - `error`: 如果同步操作失败，则返回相应的错误；否则返回 nil
-
----
-
-### CurrentFile
-
-```go
-func (l *LogRotateX) CurrentFile() string
-```
-
-**描述**: 返回当前正在写入的日志文件路径。
-
-该方法返回的是主日志文件的路径，即用户在创建 LogRotateX 时指定的文件名。这个路径始终指向"当前"的日志文件，轮转后的备份文件会使用不同的文件名。
-
-#### 注意事项
-
-- 此方法不需要加锁，因为 Filename 字段在创建后不会改变
-- 返回的路径是绝对路径（经过 sanitizePath 处理）
-- 即使文件尚未创建，也会返回预期的文件路径
-
-#### 返回值
-
-- `string`: 当前日志文件的完整路径
-
----
-
-### GetCurrentSize
-
-```go
-func (l *LogRotateX) GetCurrentSize() int64
-```
-
-**描述**: 返回当前日志文件的大小（以字节为单位）。
-
-该方法返回当前正在写入的日志文件已经写入的字节数。这个值会在每次写入操作后更新，可以用来监控文件大小或判断是否接近轮转阈值。
-
-#### 注意事项
-
-- 此操作是线程安全的，使用互斥锁保护
-- 返回的是内存中维护的大小计数，而不是实际查询文件系统
-- 如果文件尚未创建或打开，返回值为 0
-
-#### 返回值
-
-- `int64`: 当前文件大小（字节）
-
----
-
-### GetMaxSize
-
-```go
-func (l *LogRotateX) GetMaxSize() int64
-```
-
-**描述**: 返回配置的最大文件大小（以字节为单位）。
-
-该方法将用户配置的 `MaxSize`（以 MB 为单位）转换为字节数返回。当日志文件大小达到或超过此值时，会触发日志轮转操作。
-
-#### 注意事项
-
-- 此方法不需要加锁，因为 MaxSize 是配置值，通常不会在运行时改变
-- 返回值是以字节为单位的 int64 类型
-- 转换公式：MaxSize(MB) × 1024 × 1024 = 字节数
-
-#### 返回值
-
-- `int64`: 最大文件大小（字节）
 
 ---
 

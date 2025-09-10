@@ -43,7 +43,7 @@ func TestMaxBackups(t *testing.T) {
 	l := &LogRotateX{
 		Filename: filename,
 		MaxSize:  10,
-		MaxFiles:  1,
+		MaxFiles: 1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -251,7 +251,7 @@ func TestCleanupExistingBackups(t *testing.T) {
 	l := &LogRotateX{
 		Filename: filename,
 		MaxSize:  10,
-		MaxFiles:  1,
+		MaxFiles: 1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()

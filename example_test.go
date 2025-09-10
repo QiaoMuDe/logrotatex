@@ -22,7 +22,7 @@ func Example() {
 	log.SetOutput(&LogRotateX{
 		Filename: "/var/log/myapp/foo.log",
 		MaxSize:  500, // megabytes
-		MaxFiles:  3,
+		MaxFiles: 3,
 		MaxAge:   28,   // days
 		Compress: true, // disabled by default
 	})
