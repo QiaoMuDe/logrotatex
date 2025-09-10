@@ -55,21 +55,21 @@ var (
 // # 清理旧日志文件
 //
 // 每当创建新的日志文件时，可能会删除旧的日志文件。根据编码的时间戳，最近的文件会被保留，
-// 最多保留数量等于 MaxBackups（如果 MaxBackups 为 0，则保留所有文件）。
-// 任何编码时间戳早于 MaxAge 天的文件都会被删除，无论 MaxBackups 的设置如何。
+// 最多保留数量等于 MaxBackups（如果 MaxSize 为 0，则保留所有文件）。
+// 任何编码时间戳早于 MaxAge 天的文件都会被删除，无论 MaxSize 的设置如何。
 // 请注意，时间戳中编码的时间是轮转时间，可能与该文件最后一次写入的时间不同。
 //
-// 如果 MaxBackups 和 MaxAge 都为 0，则不会删除任何旧日志文件。
+// 如果 MaxSize 和 MaxAge 都为 0，则不会删除任何旧日志文件。
 type LogRotateX struct {
 	/* ========== 配置字段 ========== */
 	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
 	Filename string `json:"filename" yaml:"filename"`
 	// MaxSize 最大单个日志文件的大小（以 MB 为单位）。默认值为 10 MB。
 	MaxSize int `json:"maxsize" yaml:"maxsize"`
-	// MaxAge 最大保留日志文件的天数。默认值为 0, 表示不删除旧日志文件。
+	// MaxAge 保留日志文件的天数，超过此天数的文件将被删除。默认值为 0，表示不按时间删除旧日志文件。
 	MaxAge int `json:"maxage" yaml:"maxage"`
-	// MaxBackups 最大保留日志文件的数量。默认值为 0, 表示不删除旧日志文件。
-	MaxBackups int `json:"maxbackups" yaml:"maxbackups"`
+	// MaxFiles 最大保留的历史日志文件数量，超过此数量的旧文件将被删除。默认值为 0，表示不限制文件数量。
+	MaxFiles int `json:"maxfiles" yaml:"maxfiles"`
 
 	// ========== 行为选项 ==========
 	// LocalTime 决定是否使用本地时间记录日志文件的轮转时间。默认使用 UTC 时间。
@@ -105,7 +105,7 @@ var New = NewLogRotateX
 // 返回值:
 //   - *LogRotateX: 配置好的实例
 //
-// 默认配置: MaxSize=10MB, MaxAge=0, MaxBackups=0, LocalTime=true, Compress=false
+// 默认配置: MaxSize=10MB, MaxAge=0, MaxSize=0, LocalTime=true, Compress=false
 func NewLogRotateX(filename string) *LogRotateX {
 	// 验证文件路径
 	if filename == "" {
@@ -123,13 +123,13 @@ func NewLogRotateX(filename string) *LogRotateX {
 
 	// 创建 LogRotateX 实例并设置默认值
 	logger := &LogRotateX{
-		Filename:   filename,        // 日志文件路径
-		MaxSize:    10,              // 10MB
-		MaxAge:     0,               // 0天 (默认不清理历史文件)
-		MaxBackups: 0,               // 0个备份文件 (默认不清理备份文件)
-		LocalTime:  true,            // 使用本地时间
-		Compress:   false,           // 禁用压缩
-		filePerm:   defaultFilePerm, // 文件权限
+		Filename:  filename,        // 日志文件路径
+		MaxSize:   10,              // 10MB
+		MaxAge:    0,               // 0天 (默认不清理历史文件)
+		MaxFiles:  0,               // 0个备份文件 (默认不清理备份文件)
+		LocalTime: true,            // 使用本地时间
+		Compress:  false,           // 禁用压缩
+		filePerm:  defaultFilePerm, // 文件权限
 	}
 
 	return logger
@@ -239,31 +239,3 @@ func (l *LogRotateX) Sync() error {
 	return nil
 }
 
-// CurrentFile 返回当前正在写入的日志文件路径。
-//
-// 返回值:
-//   - string: 当前日志文件的完整路径
-func (l *LogRotateX) CurrentFile() string {
-	return l.Filename
-}
-
-// GetMaxSize 返回配置的最大文件大小（以字节为单位）。
-//
-// 返回值:
-//   - int64: 最大文件大小（字节）
-func (l *LogRotateX) GetMaxSize() int64 {
-	return int64(l.MaxSize) * int64(megabyte)
-}
-
-// GetCurrentSize 返回当前日志文件的大小（以字节为单位）。
-//
-// 返回值:
-//   - int64: 当前文件大小（字节）
-func (l *LogRotateX) GetCurrentSize() int64 {
-	// 加锁以确保并发安全，防止在读取过程中 size 被其他写入操作修改
-	l.mu.Lock()
-	// 函数返回时解锁，保证锁一定会被释放
-	defer l.mu.Unlock()
-	// 返回当前文件大小
-	return l.size
-}

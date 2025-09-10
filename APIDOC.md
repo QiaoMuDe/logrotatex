@@ -52,11 +52,11 @@ type LogRotateX struct {
     // MaxSize 最大单个日志文件的大小（以 MB 为单位）。默认值为 10 MB。
     MaxSize int `json:"maxsize" yaml:"maxsize"`
 
-    // MaxAge 最大保留日志文件的天数。默认情况下, 不会删除旧日志文件。
+    // MaxAge 最大保留日志文件的天数。默认为 0, 表示不删除旧日志文件。
     MaxAge int `json:"maxage" yaml:"maxage"`
 
-    // MaxBackups 最大保留日志文件的数量。默认情况下, 不会删除旧日志文件。
-    MaxBackups int `json:"maxbackups" yaml:"maxbackups"`
+    // MaxFiles 最大保留的历史日志文件数量，超过此数量的旧文件将被删除。默认为 0，表示不限制文件数量。
+    MaxFiles int `json:"maxfiles" yaml:"maxfiles"`
 
     // ========== 行为选项 ==========
     // LocalTime 决定是否使用本地时间记录日志文件的轮转时间。默认使用 UTC 时间。
@@ -64,9 +64,6 @@ type LogRotateX struct {
 
     // Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。默认不进行压缩。
     Compress bool `json:"compress" yaml:"compress"`
-
-    // FilePerm 是日志文件的权限模式。默认值为 0600。
-    FilePerm os.FileMode `json:"fileperm" yaml:"fileperm"`
 
     // Has unexported fields.
 }
@@ -92,11 +89,11 @@ type LogRotateX struct {
 
 #### 清理旧日志文件
 
-每当创建新的日志文件时，可能会删除旧的日志文件。根据编码的时间戳，最近的文件会被保留，最多保留数量等于 `MaxBackups`（如果 `MaxBackups` 为 0，则保留所有文件）。任何编码时间戳早于 `MaxAge` 天的文件都会被删除，无论 `MaxBackups` 的设置如何。
+每当创建新的日志文件时，可能会删除旧的日志文件。根据编码的时间戳，最近的文件会被保留，最多保留数量等于 `MaxFiles`（如果 `MaxFiles` 为 0，则保留所有文件）。任何编码时间戳早于 `MaxAge` 天的文件都会被删除，无论 `MaxFiles` 的设置如何。
 
 > **注意**: 时间戳中编码的时间是轮转时间，可能与该文件最后一次写入的时间不同。
 
-如果 `MaxBackups` 和 `MaxAge` 都为 0，则不会删除任何旧日志文件。
+如果 `MaxFiles` 和 `MaxAge` 都为 0，则不会删除任何旧日志文件。
 
 ---
 
@@ -161,10 +158,9 @@ func NewLogRotateX(filename string) *LogRotateX
 | ---------- | ------ | ----------------------------------------- |
 | MaxSize    | 10MB   | 单个日志文件最大大小                      |
 | MaxAge     | 0天    | 日志文件最大保留时间，0表示不清理历史文件 |
-| MaxBackups | 0个    | 最大备份文件数量，0表示不清理备份文件     |
+| MaxFiles   | 0个    | 最大历史文件数量，0表示不限制文件数量     |
 | LocalTime  | true   | 使用本地时间                              |
 | Compress   | false  | 禁用压缩                                  |
-| FilePerm   | 0600   | 文件权限，所有者读写，组和其他用户只读    |
 
 > **注意**: 如果文件路径不安全或创建失败，此函数会 panic
 
@@ -327,7 +323,7 @@ func main() {
   
     // 配置参数（可选）
     rotator.MaxSize = 100    // 100MB
-    rotator.MaxBackups = 3   // 保留3个备份文件
+    rotator.MaxFiles = 3     // 保留3个历史文件
     rotator.MaxAge = 28      // 保留28天
     rotator.Compress = true  // 启用压缩
   

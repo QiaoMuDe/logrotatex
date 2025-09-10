@@ -35,9 +35,9 @@ func TestMaintainMode(t *testing.T) {
 	f.Close()
 
 	l := &LogRotateX{
-		Filename:   filename,
-		MaxBackups: 1,
-		MaxSize:    100, // megabytes
+		Filename: filename,
+		MaxSize:  1,
+		MaxSize:  100, // megabytes
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -84,9 +84,9 @@ func TestMaintainOwner(t *testing.T) {
 	f.Close()
 
 	l := &LogRotateX{
-		Filename:   filename,
-		MaxBackups: 1,
-		MaxSize:    100, // megabytes
+		Filename: filename,
+		MaxSize:  1,
+		MaxSize:  100, // megabytes
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -125,10 +125,10 @@ func TestCompressMaintainMode(t *testing.T) {
 	f.Close()
 
 	l := &LogRotateX{
-		Compress:   true,
-		Filename:   filename,
-		MaxBackups: 1,
-		MaxSize:    100, // megabytes
+		Compress: true,
+		Filename: filename,
+		MaxSize:  1,
+		MaxSize:  100, // megabytes
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -181,10 +181,10 @@ func TestCompressMaintainOwner(t *testing.T) {
 	f.Close()
 
 	l := &LogRotateX{
-		Compress:   true,
-		Filename:   filename,
-		MaxBackups: 1,
-		MaxSize:    100, // megabytes
+		Compress: true,
+		Filename: filename,
+		MaxSize:  1,
+		MaxSize:  100, // megabytes
 	}
 	defer l.Close()
 	b := []byte("boo!")

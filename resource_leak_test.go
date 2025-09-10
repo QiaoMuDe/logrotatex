@@ -31,12 +31,12 @@ func TestFileHandleLeakPrevention(t *testing.T) {
 
 	// 创建LogRotateX实例
 	logger := &LogRotateX{
-		Filename:   logFile,
-		MaxSize:    1, // 1MB，便于触发轮转
-		MaxBackups: 3,
-		MaxAge:     1,
-		LocalTime:  true,
-		Compress:   false,
+		Filename:  logFile,
+		MaxSize:   1, // 1MB，便于触发轮转
+		MaxFiles:  3,
+		MaxAge:    1,
+		LocalTime: true,
+		Compress:  false,
 	}
 
 	// 测试多次写入和轮转操作
@@ -89,12 +89,12 @@ func TestConcurrentFileHandleManagement(t *testing.T) {
 	logFile := filepath.Join(logsDir, "test_concurrent.log")
 
 	logger := &LogRotateX{
-		Filename:   logFile,
-		MaxSize:    1, // 1MB
-		MaxBackups: 5,
-		MaxAge:     1,
-		LocalTime:  true,
-		Compress:   false,
+		Filename:  logFile,
+		MaxSize:   1, // 1MB
+		MaxFiles:   5,
+		MaxAge:    1,
+		LocalTime: true,
+		Compress:  false,
 	}
 
 	// 并发写入测试
@@ -143,12 +143,12 @@ func TestErrorHandlingInFileOperations(t *testing.T) {
 	logFile := filepath.Join(logsDir, "test_error.log")
 
 	logger := &LogRotateX{
-		Filename:   logFile,
-		MaxSize:    1,
-		MaxBackups: 3,
-		MaxAge:     1,
-		LocalTime:  true,
-		Compress:   false,
+		Filename:  logFile,
+		MaxSize:   1,
+		MaxFiles:   3,
+		MaxAge:    1,
+		LocalTime: true,
+		Compress:  false,
 	}
 
 	// 正常写入
@@ -191,12 +191,12 @@ func TestMultipleCloseOperations(t *testing.T) {
 	logFile := filepath.Join(logsDir, "test_multiple_close.log")
 
 	logger := &LogRotateX{
-		Filename:   logFile,
-		MaxSize:    10,
-		MaxBackups: 3,
-		MaxAge:     1,
-		LocalTime:  true,
-		Compress:   false,
+		Filename:  logFile,
+		MaxSize:   10,
+		MaxFiles:   3,
+		MaxAge:    1,
+		LocalTime: true,
+		Compress:  false,
 	}
 
 	// 写入一些数据
@@ -242,12 +242,12 @@ func BenchmarkFileHandleManagement(b *testing.B) {
 	logFile := filepath.Join(logsDir, "bench_handle.log")
 
 	logger := &LogRotateX{
-		Filename:   logFile,
-		MaxSize:    1,
-		MaxBackups: 5,
-		MaxAge:     1,
-		LocalTime:  true,
-		Compress:   false,
+		Filename:  logFile,
+		MaxSize:   1,
+		MaxFiles:   5,
+		MaxAge:    1,
+		LocalTime: true,
+		Compress:  false,
 	}
 
 	data := []byte("基准测试数据行\n")

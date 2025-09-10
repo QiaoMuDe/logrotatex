@@ -23,7 +23,7 @@ import (
 //   - error: 操作失败时返回错误，否则返回 nil
 func (l *LogRotateX) cleanupSync() error {
 	// 快速路径: 如果没有设置保留数量, 保留天数, 则直接返回
-	if l.MaxBackups <= 0 && l.MaxAge <= 0 {
+	if l.MaxFiles <= 0 && l.MaxAge <= 0 {
 		return nil
 	}
 
@@ -224,7 +224,7 @@ func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
 	}
 
 	// 快速失败：没有设置任何清理规则
-	hasBackupRule := l.MaxBackups > 0
+	hasBackupRule := l.MaxFiles > 0
 	hasAgeRule := l.MaxAge > 0
 	if !hasBackupRule && !hasAgeRule {
 		return nil
@@ -234,16 +234,16 @@ func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
 
 	// 场景1: 数量+天数组合
 	if hasBackupRule && hasAgeRule {
-		keep = l.keepByDaysAndCount(files, l.MaxAge, l.MaxBackups)
+		keep = l.keepByDaysAndCount(files, l.MaxAge, l.MaxFiles)
 		return l.calculateRemoveList(files, keep)
 	}
 
 	// 场景2: 只按数量保留
 	if hasBackupRule {
-		if l.MaxBackups >= len(files) {
+		if l.MaxFiles >= len(files) {
 			return nil // 文件数量不超过限制，无需删除
 		}
-		keep = files[:l.MaxBackups]
+		keep = files[:l.MaxFiles]
 		return l.calculateRemoveList(files, keep)
 	}
 

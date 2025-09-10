@@ -151,7 +151,7 @@ func main() {
     
     // 生产环境推荐配置
     logger.MaxSize = 100    // 100MB - 避免单文件过大
-    logger.MaxBackups = 10  // 保留10个备份 - 控制磁盘使用
+    logger.MaxFiles = 10  // 保留10个历史文件 - 控制磁盘使用
     logger.MaxAge = 30      // 保留30天 - 满足审计要求
     logger.Compress = true  // 启用压缩 - 节省存储空间
     
@@ -160,8 +160,8 @@ func main() {
     
     // 写入日志
     log.Println("应用启动成功")
-    log.Printf("当前配置: MaxSize=%dMB, MaxBackups=%d, MaxAge=%d天", 
-        logger.MaxSize, logger.MaxBackups, logger.MaxAge)
+    log.Printf("当前配置: MaxSize=%dMB, MaxSize=%d, MaxAge=%d天", 
+        logger.MaxSize, logger.MaxSize, logger.MaxAge)
 }
 ```
 
@@ -180,7 +180,7 @@ func main() {
     logger := &logrotatex.LogRotateX{
         Filename:   "logs/custom.log",
         MaxSize:    50,     // 50MB
-        MaxBackups: 5,      // 保留5个备份
+        MaxFiles: 5,      // 保留5个历史文件
         MaxAge:     14,     // 保留14天
         LocalTime:  true,   // 使用本地时间
         Compress:   true,   // 启用压缩
@@ -212,8 +212,8 @@ import (
 func main() {
     // 创建轮转器
     rotator := logrotatex.NewLogRotateX("logs/app.log")
-    rotator.MaxSize = 100
-    rotator.MaxBackups = 5
+    rotator.MaxFiles = 100
+    rotator.MaxFiles = 5
     rotator.Compress = true
     defer rotator.Close()
     
@@ -253,7 +253,7 @@ func setupZapLogger() *zap.Logger {
     // 创建轮转器
     rotator := logrotatex.NewLogRotateX("logs/app.log")
     rotator.MaxSize = 100
-    rotator.MaxBackups = 10
+    rotator.MaxSize = 10
     rotator.MaxAge = 30
     rotator.Compress = true
     
@@ -354,11 +354,10 @@ func main() {
 type LogRotateX struct {
     Filename   string      // 日志文件路径
     MaxSize    int         // 最大文件大小（MB）
-    MaxBackups int         // 最大备份文件数量
+    MaxFiles int        // 最大历史文件数量
     MaxAge     int         // 最大保留天数
     LocalTime  bool        // 是否使用本地时间
     Compress   bool        // 是否压缩备份文件
-    FilePerm   os.FileMode // 文件权限
 }
 ```
 
@@ -414,7 +413,7 @@ LogRotateX 作为 `io.Writer` 实现，支持任何文本格式的日志：
 |--------|------|--------|------|------|
 | `Filename` | `string` | `""` | 日志文件路径 | `"logs/app.log"` |
 | `MaxSize` | `int` | `10` | 单个文件最大大小（MB） | `100` |
-| `MaxBackups` | `int` | `0` | 最大备份文件数量 | `5` |
+| `MaxFiles` | `int` | `0` | 最大历史文件数量 | `5` |
 | `MaxAge` | `int` | `0` | 最大保留天数 | `30` |
 | `LocalTime` | `bool` | `true` | 使用本地时间命名 | `true` |
 | `Compress` | `bool` | `false` | 是否压缩备份文件 | `true` |
@@ -428,10 +427,9 @@ LogRotateX 作为 `io.Writer` 实现，支持任何文本格式的日志：
 ```go
 logger := logrotatex.NewLogRotateX("logs/production.log")
 logger.MaxSize = 100      // 100MB - 平衡性能和管理
-logger.MaxBackups = 30    // 30个备份 - 满足审计要求
+logger.MaxFiles = 30    // 30个历史文件 - 满足审计要求
 logger.MaxAge = 90        // 90天 - 符合合规要求
 logger.Compress = true    // 启用压缩 - 节省存储
-logger.FilePerm = 0640    // 组可读 - 便于运维
 ```
 
 </details>
@@ -442,10 +440,9 @@ logger.FilePerm = 0640    // 组可读 - 便于运维
 ```go
 logger := logrotatex.NewLogRotateX("logs/dev.log")
 logger.MaxSize = 10       // 10MB - 快速轮转便于测试
-logger.MaxBackups = 3     // 3个备份 - 节省空间
+logger.MaxFiles = 3     // 3个历史文件 - 节省空间
 logger.MaxAge = 7         // 7天 - 短期保留
 logger.Compress = false   // 不压缩 - 便于查看
-logger.FilePerm = 0644    // 所有人可读 - 便于调试
 ```
 
 </details>
@@ -456,10 +453,9 @@ logger.FilePerm = 0644    // 所有人可读 - 便于调试
 ```go
 logger := logrotatex.NewLogRotateX("logs/cloud.log")
 logger.MaxSize = 50       // 50MB - 适合容器环境
-logger.MaxBackups = 5     // 5个备份 - 控制存储使用
+logger.MaxFiles = 5     // 5个历史文件 - 控制存储使用
 logger.MaxAge = 14        // 14天 - 配合日志收集系统
 logger.Compress = true    // 启用压缩 - 减少网络传输
-logger.FilePerm = 0600    // 严格权限 - 提高安全性
 ```
 
 </details>
@@ -550,7 +546,7 @@ go tool cover -html=coverage.out -o coverage.html
 ```go
 logger := logrotatex.NewLogRotateX("logs/app.log")
 logger.MaxSize = 100      // 100MB，避免单文件过大
-logger.MaxBackups = 10    // 保留10个备份，控制磁盘使用
+logger.MaxFiles = 10    // 保留10个历史文件，控制磁盘使用
 logger.MaxAge = 30        // 保留30天，满足审计要求
 logger.Compress = true    // 启用压缩，节省存储空间
 ```
@@ -564,7 +560,7 @@ var globalLogger *logrotatex.LogRotateX
 func init() {
     globalLogger = logrotatex.NewLogRotateX("logs/app.log")
     globalLogger.MaxSize = 50
-    globalLogger.MaxBackups = 5
+    globalLogger.MaxSize = 5
     globalLogger.Compress = true
   
     // 设置为标准日志输出
@@ -666,13 +662,13 @@ if err := logger.Rotate(); err != nil {
 
 **A: 检查配置：**
 
-- ✅ `MaxBackups` 和 `MaxAge` 的设置
+- ✅ `MaxSize` 和 `MaxAge` 的设置
 - ✅ 文件名格式是否符合预期
 - ✅ 目录权限是否允许删除操作
 
 ```go
 // 调试清理逻辑
-logger.MaxBackups = 5  // 明确设置备份数量
+logger.MaxFiles = 5  // 明确设置历史文件数量
 logger.MaxAge = 7      // 明确设置保留天数
 ```
 

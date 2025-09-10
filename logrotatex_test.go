@@ -260,9 +260,9 @@ func TestRotate(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大备份数和最大文件大小
 	l := &LogRotateX{
-		Filename:   filename,
-		MaxBackups: 1,
-		MaxSize:    100, // megabytes
+		Filename: filename,
+		MaxSize:  1,
+		MaxFiles:  100, // megabytes
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -522,11 +522,11 @@ func TestCompressOnResume(t *testing.T) {
 	if len(zipData) == 0 {
 		t.Fatal("压缩文件不应该为空")
 	}
-	
+
 	// 验证至少存在主日志文件和压缩文件
 	files, err := os.ReadDir(dir)
 	isNil(err, t)
-	
+
 	hasMainLog := false
 	hasCompressed := false
 	for _, f := range files {
@@ -537,7 +537,7 @@ func TestCompressOnResume(t *testing.T) {
 			hasCompressed = true
 		}
 	}
-	
+
 	if !hasMainLog {
 		t.Error("主日志文件不存在")
 	}
@@ -573,8 +573,8 @@ func TestJson(t *testing.T) {
 	equals(5, l.MaxSize, t)
 	// 验证反序列化后的实例的 MaxAge 字段是否与 JSON 数据中的值一致
 	equals(10, l.MaxAge, t)
-	// 验证反序列化后的实例的 MaxBackups 字段是否与 JSON 数据中的值一致
-	equals(3, l.MaxBackups, t)
+	// 验证反序列化后的实例的 MaxSize 字段是否与 JSON 数据中的值一致
+	equals(3, l.MaxSize, t)
 	// 验证反序列化后的实例的 LocalTime 字段是否与 JSON 数据中的值一致
 	equals(true, l.LocalTime, t)
 	// 验证反序列化后的实例的 Compress 字段是否与 JSON 数据中的值一致
@@ -686,10 +686,10 @@ func TestLogRunInfo(t *testing.T) {
 	t.Log("第一阶段：测试基本写入功能")
 
 	logger := &LogRotateX{
-		Filename:   filepath.Join(dir, "test.log"),
-		MaxSize:    1,     // 1KB，容易触发轮转
-		MaxBackups: 2,     // 最多保留2个备份文件
-		Compress:   false, // 先不启用压缩，避免Windows文件句柄问题
+		Filename: filepath.Join(dir, "test.log"),
+		MaxSize:  1,     // 1KB，容易触发轮转
+		MaxFiles:  2,     // 最多保留2个备份文件
+		Compress: false, // 先不启用压缩，避免Windows文件句柄问题
 	}
 	defer func() { _ = logger.Close() }()
 
@@ -775,10 +775,10 @@ func TestLogRunInfo(t *testing.T) {
 
 	// 创建启用压缩的新logger
 	compressLogger := &LogRotateX{
-		Filename:   filepath.Join(dir, "compress_test.log"),
-		MaxSize:    1,    // 1KB
-		MaxBackups: 1,    // 只保留1个备份
-		Compress:   true, // 启用压缩
+		Filename: filepath.Join(dir, "compress_test.log"),
+		MaxSize:  1,    // 1KB
+		MaxFiles:  1,    // 只保留1个备份
+		Compress: true, // 启用压缩
 	}
 	defer func() { _ = compressLogger.Close() }()
 

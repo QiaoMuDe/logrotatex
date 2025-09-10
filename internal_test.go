@@ -41,9 +41,9 @@ func TestMaxBackups(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小和最大备份数
 	l := &LogRotateX{
-		Filename:   filename,
-		MaxSize:    10,
-		MaxBackups: 1,
+		Filename: filename,
+		MaxSize:  10,
+		MaxFiles:  1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -249,9 +249,9 @@ func TestCleanupExistingBackups(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小和最大备份数
 	l := &LogRotateX{
-		Filename:   filename,
-		MaxSize:    10,
-		MaxBackups: 1,
+		Filename: filename,
+		MaxSize:  10,
+		MaxFiles:  1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()

@@ -80,9 +80,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    1, // 1MB = 1048576 bytes
-			MaxBackups: 1,
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB = 1048576 bytes
+			MaxFiles:  1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -140,9 +140,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    1, // 1MB
-			MaxBackups: 2,
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+			MaxFiles:  2,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -174,9 +174,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    1, // 1MB
-			MaxBackups: 0, // 不限制备份数量
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+			MaxFiles:  0, // 不限制备份数量
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -377,9 +377,9 @@ func TestErrorPaths(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    1,
-			MaxBackups: 1,
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1,
+			MaxFiles:  1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -412,9 +412,9 @@ func TestConcurrentScenarios(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    1, // 1MB
-			MaxBackups: 5,
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+			MaxFiles:  5,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -483,9 +483,9 @@ func TestConcurrentScenarios(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    1, // 1MB
-			MaxBackups: 3,
+			Filename: boundaryLogFile(dir),
+			MaxSize:  1, // 1MB
+			MaxFiles:  3,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -620,10 +620,10 @@ func TestEdgeCases(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    -1, // 负数，应该使用默认值
-			MaxBackups: -1, // 负数
-			MaxAge:     -1, // 负数
+			Filename: boundaryLogFile(dir),
+			MaxSize:  -1, // 负数，应该使用默认值
+			MaxFiles:  -1, // 负数
+			MaxAge:   -1, // 负数
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -646,10 +646,10 @@ func TestEdgeCases(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename:   boundaryLogFile(dir),
-			MaxSize:    999999, // 极大值
-			MaxBackups: 999999, // 极大值
-			MaxAge:     999999, // 极大值
+			Filename: boundaryLogFile(dir),
+			MaxSize:  999999, // 极大值
+			MaxFiles:  999999, // 极大值
+			MaxAge:   999999, // 极大值
 		}
 		defer func() {
 			if err := l.Close(); err != nil {

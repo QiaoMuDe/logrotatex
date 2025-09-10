@@ -40,11 +40,11 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	t.Log("=== 第一阶段：测试基本写入功能 ===")
 
 	logger := &LogRotateX{
-		Filename:   filepath.Join(dir, "app.log"),
-		MaxSize:    2,    // 2KB
-		MaxBackups: 3,    // 最多保留3个备份
-		MaxAge:     7,    // 最多保留7天
-		Compress:   true, // 启用压缩
+		Filename: filepath.Join(dir, "app.log"),
+		MaxSize:  2,    // 2KB
+		MaxFiles:  3,    // 最多保留3个备份
+		MaxAge:   7,    // 最多保留7天
+		Compress: true, // 启用压缩
 	}
 	defer func() { _ = logger.Close() }()
 
@@ -80,8 +80,8 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	if logger.MaxSize != 2 {
 		t.Errorf("期望 MaxSize 为 2，实际为 %d", logger.MaxSize)
 	}
-	if logger.MaxBackups != 3 {
-		t.Errorf("期望 MaxBackups 为 3，实际为 %d", logger.MaxBackups)
+	if logger.MaxSize != 3 {
+		t.Errorf("期望 MaxSize 为 3，实际为 %d", logger.MaxSize)
 	}
 	if logger.MaxAge != 7 {
 		t.Errorf("期望 MaxAge 为 7，实际为 %d", logger.MaxAge)
