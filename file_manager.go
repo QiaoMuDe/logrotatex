@@ -22,8 +22,8 @@ import (
 // 返回值:
 //   - error: 操作失败时返回错误，否则返回 nil
 func (l *LogRotateX) cleanupSync() error {
-	// 快速路径: 如果没有设置保留数量, 保留天数, 则直接返回
-	if l.MaxFiles <= 0 && l.MaxAge <= 0 {
+	// 快速路径: 如果没有设置保留数量, 保留天数, 且不启用压缩, 则直接返回
+	if l.MaxFiles <= 0 && l.MaxAge <= 0 && !l.Compress {
 		return nil
 	}
 

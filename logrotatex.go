@@ -149,33 +149,23 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 计算要写入的数据长度
 	writeLen := int64(len(p))
 
-	// 确保文件已正确打开
-	if err = l.openExistingOrNew(len(p)); err != nil {
-		return 0, err
+	// 检查当前写入是否会导致文件大小超过限制，如果是则触发轮转。
+	// 这个检查必须在实际写入数据之前进行。
+	if l.file == nil {
+		if err = l.openExistingOrNew(len(p)); err != nil {
+			return 0, err
+		}
 	}
 
-	// 检查是否需要轮转: 当前文件大小+写入数据长度 > 超过最大大小
+	// 计算即将写入的数据长度是否会超过最大大小
 	if l.size+writeLen > l.max() {
-		// 执行日志轮转操作
 		if err := l.rotate(); err != nil {
 			return 0, err
 		}
-
-		// 轮转后必须重新确保文件打开
-		if err = l.openExistingOrNew(len(p)); err != nil {
-			return 0, err
-		}
 	}
 
-	// 双重检查确保文件句柄有效，如果为nil则尝试重新打开
 	if l.file == nil {
-		if err = l.openExistingOrNew(len(p)); err != nil {
-			return 0, fmt.Errorf("logrotatex: unable to open file for writing: %w", err)
-		}
-		// 如果重新打开后仍然为nil，则返回错误
-		if l.file == nil {
-			return 0, fmt.Errorf("logrotatex: file handle is still invalid, unable to write data")
-		}
+		return 0, fmt.Errorf("logrotatex: file handle is nil after attempting to open or rotate")
 	}
 
 	// 安全地将所有数据写入文件

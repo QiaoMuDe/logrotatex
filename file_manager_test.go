@@ -32,12 +32,12 @@ func createTestLogInfo(name string, timestamp time.Time) logInfo {
 // 创建测试用的LogRotateX实例
 func createTestLogRotateX(maxBackups, maxAge int) *LogRotateX {
 	return &LogRotateX{
-		MaxSize: maxBackups,
-		MaxAge:  maxAge,
+		MaxFiles: maxBackups,
+		MaxAge:   maxAge,
 	}
 }
 
-// 测试场景1: 只按数量保留（MaxSize>0, MaxAge=0）
+// 测试场景1: 只按数量保留（MaxFiles>0, MaxAge=0）
 func TestGetFilesToRemove_OnlyByCount(t *testing.T) {
 	now := time.Now()
 
@@ -101,7 +101,7 @@ func TestGetFilesToRemove_OnlyByCount(t *testing.T) {
 	}
 }
 
-// 测试场景2: 只按天数保留（MaxSize=0, MaxAge>0）
+// 测试场景2: 只按天数保留（MaxFiles=0, MaxAge>0）
 func TestGetFilesToRemove_OnlyByAge(t *testing.T) {
 	now := time.Now()
 
@@ -224,7 +224,7 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 			remove := l.getFilesToRemove(files)
 
 			t.Logf("测试场景: %s", tt.description)
-			t.Logf("配置: MaxSize=%d, MaxAge=%d", tt.maxBackups, tt.maxAge)
+			t.Logf("配置: MaxFiles=%d, MaxAge=%d", tt.maxBackups, tt.maxAge)
 
 			// 验证删除文件数量
 			if len(remove) != len(tt.expectedRemove) {

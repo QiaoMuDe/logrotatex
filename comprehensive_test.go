@@ -78,8 +78,8 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	if logger.MaxSize != 2 {
 		t.Errorf("期望 MaxSize 为 2，实际为 %d", logger.MaxSize)
 	}
-	if logger.MaxSize != 3 {
-		t.Errorf("期望 MaxSize 为 3，实际为 %d", logger.MaxSize)
+	if logger.MaxFiles != 3 {
+		t.Errorf("期望 MaxFiles 为 3，实际为 %d", logger.MaxFiles)
 	}
 	if logger.MaxAge != 7 {
 		t.Errorf("期望 MaxAge 为 7，实际为 %d", logger.MaxAge)

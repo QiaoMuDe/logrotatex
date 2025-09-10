@@ -15,6 +15,17 @@ import (
 
 // TestBoundaryConditions 测试各种边界条件
 func TestBoundaryConditions(t *testing.T) {
+	// 保存原始值
+	originalCurrentTime := currentTime
+
+	// 测试结束后恢复原始值
+	defer func() {
+		currentTime = originalCurrentTime
+	}()
+
+	// 将当前时间设置为模拟时间，确保测试的可重复性
+	currentTime = fakeTime
+
 	t.Run("零字节写入", func(t *testing.T) {
 		dir := makeBoundaryTempDir("TestBoundaryConditions_ZeroWrite", t)
 		defer func() {
@@ -121,7 +132,7 @@ func TestBoundaryConditions(t *testing.T) {
 
 		backupCount := 0
 		for _, file := range files {
-			if strings.Contains(file.Name(), "2025-") {
+			if strings.Contains(file.Name(), "20250910") && strings.Contains(file.Name(), "test_") {
 				backupCount++
 			}
 		}
@@ -184,35 +195,55 @@ func TestBoundaryConditions(t *testing.T) {
 			}
 		}()
 
-		// 写入多次，每次1MB，触发多次轮转
-		data := make([]byte, megabyte)
-		for i := range data {
-			data[i] = 'a'
-		}
+		// 写入3次，触发2次轮转
+		// 第一次写入，不触发轮转
+		b1 := make([]byte, megabyte-1)
+		n, err := l.Write(b1)
+		isNil(err, t)
+		equals(len(b1), n, t)
 
-		for i := 0; i < 3; i++ {
-			_, err := l.Write(data)
-			if err != nil {
-				t.Fatalf("第%d次写入失败: %v", i+1, err)
-			}
-		}
+		// 第二次写入，触发第一次轮转
+		newFakeTime()
+		b2 := make([]byte, 2) // 写入2字节，总大小超过1MB
+		n, err = l.Write(b2)
+		isNil(err, t)
+		equals(len(b2), n, t)
+
+		// 第三次写入，不触发轮转
+		n, err = l.Write(b1)
+		isNil(err, t)
+		equals(len(b1), n, t)
+
+		// 第四次写入，触发第二次轮转
+		newFakeTime()
+		n, err = l.Write(b2)
+		isNil(err, t)
+		equals(len(b2), n, t)
 
 		// 检查所有备份文件都被保留
+		// 添加短暂延迟，确保文件系统同步
+		time.Sleep(10 * time.Millisecond)
 		files, err := os.ReadDir(dir)
 		if err != nil {
 			t.Fatalf("读取目录失败: %v", err)
 		}
 
+		t.Logf("Found %d files in directory %s:", len(files), dir)
+		for _, file := range files {
+			t.Logf(" - %s", file.Name())
+		}
+
 		backupCount := 0
 		for _, file := range files {
-			if strings.Contains(file.Name(), "2025-") {
+			// 备份文件格式为 test_timestamp.log
+			if strings.HasPrefix(file.Name(), "test_") && strings.HasSuffix(file.Name(), ".log") {
 				backupCount++
 			}
 		}
 
-		// 应该有2个备份文件（第3次写入创建了新的当前文件）
-		if backupCount < 2 {
-			t.Errorf("期望至少2个备份文件，实际找到%d个", backupCount)
+		// 应该有2个备份文件
+		if backupCount != 2 {
+			t.Errorf("期望2个备份文件，实际找到%d个", backupCount)
 		}
 	})
 
