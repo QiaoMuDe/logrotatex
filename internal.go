@@ -140,7 +140,6 @@ func (l *LogRotateX) close() error {
 	l.file = nil
 
 	// 调用文件的 Close 方法, 尝试关闭文件
-	// 使用defer确保即使在panic情况下也能正确处理
 	var closeErr error
 	func() {
 		defer func() {
@@ -165,19 +164,20 @@ func (l *LogRotateX) close() error {
 //   - error: 轮转失败时返回错误，否则返回 nil
 func (l *LogRotateX) rotate() error {
 	// 调用 close 方法关闭当前的日志文件。
-	// 如果关闭过程中发生错误, 返回该错误。
 	if err := l.close(); err != nil {
 		return err
 	}
+
 	// 调用 openNew 方法打开一个新的日志文件。
-	// 如果打开过程中发生错误, 返回该错误。
 	if err := l.openNew(); err != nil {
 		return err
 	}
-	// 调用 mill 方法处理日志文件的轮转逻辑。
-	// 该方法可能包括压缩旧日志文件、删除过期日志文件等操作。
-	l.mill()
-	// 如果上述操作都成功, 返回 nil 表示没有错误。
+
+	// 同步执行清理操作，包括压缩旧日志文件、删除过期日志文件等操作。
+	if err := l.cleanupSync(); err != nil {
+		fmt.Printf("logrotatex: cleanup failed during rotation: %v\n", err)
+	}
+
 	return nil
 }
 
@@ -295,9 +295,6 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	if l.file != nil {
 		return nil
 	}
-
-	// 确保日志文件的大小信息是最新的
-	l.mill()
 
 	// 获取日志文件的完整路径
 	filename := l.filename()

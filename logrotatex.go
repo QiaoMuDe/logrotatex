@@ -17,13 +17,11 @@
 package logrotatex
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -91,23 +89,9 @@ type LogRotateX struct {
 	// mu 是互斥锁, 用于保护文件操作。
 	mu sync.Mutex
 
-	/* ========== 后台处理 ========== */
-	// millCh 是一个通道, 用于通知 LogRotateX 进行压缩和删除旧日志文件。
-	millCh chan bool
-	// millCtx 是mill goroutine的上下文，用于优雅关闭
-	millCtx context.Context
-	// millCancel 是mill goroutine的取消函数
-	millCancel context.CancelFunc
-
 	/* ========== 生命周期控制 ========== */
-	// startMill 是一个 sync.Once, 用于确保只启动一次压缩和删除旧日志文件的 goroutine。
-	startMill sync.Once
 	// closeOnce 是一个 sync.Once, 用于确保只执行一次关闭操作
 	closeOnce sync.Once
-	// millStarted 标记mill goroutine是否已启动 (使用原子操作)
-	millStarted atomic.Bool
-	// millWg 用于等待mill goroutine完全退出
-	millWg sync.WaitGroup
 }
 
 // New 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
@@ -161,9 +145,7 @@ func NewLogRotateX(filename string) *LogRotateX {
 //   - n: 实际写入的字节数
 //   - err: 写入失败时返回错误
 func (l *LogRotateX) Write(p []byte) (n int, err error) {
-	// 加锁以确保并发安全, 防止多个 goroutine 同时操作文件
 	l.mu.Lock()
-	// 函数返回时解锁, 保证锁一定会被释放
 	defer l.mu.Unlock()
 
 	// 计算要写入的数据长度
@@ -218,63 +200,8 @@ func (l *LogRotateX) Close() error {
 
 	// 使用 sync.Once 确保整个关闭操作只执行一次
 	l.closeOnce.Do(func() {
-		// 创建一个带5秒超时的上下文
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		done := make(chan error, 1)
-
-		go func() {
-			defer func() {
-				// 使用defer确保即使在panic情况下也能发送结果
-				if r := recover(); r != nil {
-					done <- fmt.Errorf("logrotatex: panic occurred during close operation: %v", r)
-				}
-			}()
-
-			// 停止mill goroutine
-			if l.millStarted.Load() && l.millCancel != nil {
-				// 取消context，通知goroutine退出
-				l.millCancel()
-				// 等待goroutine完全退出
-				l.millWg.Wait()
-				l.millStarted.Store(false)
-			}
-
-			// 关闭mill通道
-			if l.millCh != nil {
-				// 使用select避免在通道已关闭时阻塞
-				select {
-				case <-l.millCh:
-					// 通道已关闭
-				default:
-					close(l.millCh)
-				}
-				l.millCh = nil
-			}
-
-			// 调用 LogRotateX 的 close 方法, 执行具体的关闭操作
-			done <- l.close()
-		}()
-
-		// 等待关闭完成或上下文取消
-		select {
-		case err := <-done:
-			// 报错也要关闭文件句柄
-			_ = l.file.Close()
-			closeErr = err
-		case <-ctx.Done():
-			// 即使超时也要尝试强制关闭文件句柄
-			if l.file != nil {
-				l.mu.Lock()
-				if l.file != nil {
-					_ = l.file.Close() // 强制关闭，忽略错误
-					l.file = nil
-				}
-				l.mu.Unlock()
-			}
-			closeErr = fmt.Errorf("logrotatex: close operation timeout: %w", ctx.Err())
-		}
+		// 直接调用 LogRotateX 的 close 方法, 执行具体的关闭操作
+		closeErr = l.close()
 	})
 
 	return closeErr

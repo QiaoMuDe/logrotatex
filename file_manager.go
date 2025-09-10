@@ -5,7 +5,6 @@
 package logrotatex
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,12 +16,12 @@ import (
 	"gitee.com/MM-Q/comprx/types"
 )
 
-// millRunOnce 执行一次日志文件的压缩和清理操作。
+// cleanupSync 同步执行日志文件的压缩和清理操作。
 // 根据 MaxBackups、MaxAge 和 Compress 配置处理旧日志文件。
 //
 // 返回值:
 //   - error: 操作失败时返回错误，否则返回 nil
-func (l *LogRotateX) millRunOnce() error {
+func (l *LogRotateX) cleanupSync() error {
 	// 快速路径: 如果没有设置备份保留数量, 备份保留天数, 启用压缩功能, 则直接返回
 	if l.MaxBackups == 0 && l.MaxAge == 0 && !l.Compress {
 		return nil
@@ -37,7 +36,7 @@ func (l *LogRotateX) millRunOnce() error {
 	// 定义需要压缩和移除的日志文件列表
 	var compress, remove []logInfo
 
-	// 使用新的清理逻辑获取需要删除的文件
+	// 获取需要删除的文件
 	remove = l.getFilesToRemove(files)
 
 	// 处理压缩文件
@@ -50,6 +49,19 @@ func (l *LogRotateX) millRunOnce() error {
 		}
 	}
 
+	// 执行清理操作
+	return l.executeCleanup(remove, compress)
+}
+
+// executeCleanup 执行文件删除和压缩操作
+//
+// 参数:
+//   - remove: 需要删除的文件列表
+//   - compress: 需要压缩的文件列表
+//
+// 返回值:
+//   - error: 操作失败时返回错误，否则返回 nil
+func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	// 收集所有错误
 	var errors []error
 
@@ -86,76 +98,23 @@ func (l *LogRotateX) millRunOnce() error {
 			continue // 压缩失败就跳过，保留原文件
 		}
 
-		// 删除压缩文件
+		// 删除原文件
 		if err := os.Remove(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: failed to delete compressed file %s: %w", compressPath, err))
+			errors = append(errors, fmt.Errorf("logrotatex: failed to delete original file %s: %w", filePath, err))
 		}
 	}
 
 	// 如果有错误，返回聚合错误
 	if len(errors) > 0 {
 		var errMsg strings.Builder
-		errMsg.WriteString("logrotatex: multiple errors occurred during millRunOnce execution:\n")
+		errMsg.WriteString("logrotatex: multiple errors occurred during cleanup execution:\n")
 		for i, err := range errors {
 			errMsg.WriteString(fmt.Sprintf("  %d. %v\n", i+1, err))
 		}
-		return fmt.Errorf("logrotatex: %s", errMsg.String())
+		return fmt.Errorf("%s", errMsg.String())
 	}
 
 	return nil
-}
-
-// millRun 在独立的 goroutine 中运行，处理日志文件的压缩和清理操作。
-// 收到 context 取消信号时安全退出。
-func (l *LogRotateX) millRun() {
-	defer func() {
-		// 标记goroutine已完成
-		l.millWg.Done()
-		// 确保在goroutine退出时进行清理
-		if r := recover(); r != nil {
-			fmt.Printf("logrotatex: millRun panic recovered: %v\n", r)
-		}
-	}()
-
-	for {
-		select {
-		case <-l.millCh:
-			// 执行一次日志文件的压缩和清理操作
-			if err := l.millRunOnce(); err != nil {
-				// 使用更好的错误记录方式
-				fmt.Printf("logrotatex: millRunOnce execution failed: %v\n", err)
-			}
-		case <-l.millCtx.Done():
-			// 收到context取消信号，安全退出goroutine
-			return
-		}
-	}
-}
-
-// mill 触发日志文件的压缩和清理操作。
-// 如果管理 goroutine 未启动则启动它。
-func (l *LogRotateX) mill() {
-	l.startMill.Do(func() {
-		// 创建context用于goroutine生命周期管理
-		l.millCtx, l.millCancel = context.WithCancel(context.Background())
-		l.millCh = make(chan bool, 1)
-		l.millStarted.Store(true)
-		l.millWg.Add(1)
-		// 启动一个独立的 goroutine 来执行日志文件的压缩和清理操作
-		go l.millRun()
-	})
-
-	// 如果goroutine已经停止，则不发送信号
-	if !l.millStarted.Load() {
-		return
-	}
-
-	// 向通道发送一个信号, 触发一次日志文件的压缩和清理操作
-	select {
-	case l.millCh <- true:
-	default:
-		// 通道已满, 说明已有清理操作在等待执行
-	}
 }
 
 // oldLogFiles 返回当前目录中的所有备份日志文件，按时间戳排序。
