@@ -196,8 +196,8 @@ func (l *LogRotateX) openNew() error {
 	name := l.filename()
 
 	// 获取文件的权限模式
-	mode := l.FilePerm
-	// 如果未设置FilePerm, 则使用默认值0600
+	mode := l.filePerm
+	// 如果未设置filePerm, 则使用默认值0600
 	if mode == 0 {
 		mode = os.FileMode(defaultFilePerm)
 	}
@@ -319,7 +319,7 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	}
 
 	// 以追加模式打开现有日志文件
-	filePerm := l.FilePerm
+	filePerm := l.filePerm
 	if filePerm == 0 {
 		filePerm = os.FileMode(defaultFilePerm)
 	}

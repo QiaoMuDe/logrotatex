@@ -66,9 +66,9 @@ type LogRotateX struct {
 	Filename string `json:"filename" yaml:"filename"`
 	// MaxSize 最大单个日志文件的大小（以 MB 为单位）。默认值为 10 MB。
 	MaxSize int `json:"maxsize" yaml:"maxsize"`
-	// MaxAge 最大保留日志文件的天数。默认情况下, 不会删除旧日志文件。
+	// MaxAge 最大保留日志文件的天数。默认值为 0, 表示不删除旧日志文件。
 	MaxAge int `json:"maxage" yaml:"maxage"`
-	// MaxBackups 最大保留日志文件的数量。默认情况下, 不会删除旧日志文件。
+	// MaxBackups 最大保留日志文件的数量。默认值为 0, 表示不删除旧日志文件。
 	MaxBackups int `json:"maxbackups" yaml:"maxbackups"`
 
 	// ========== 行为选项 ==========
@@ -76,8 +76,8 @@ type LogRotateX struct {
 	LocalTime bool `json:"localtime" yaml:"localtime"`
 	// Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
-	// FilePerm 是日志文件的权限模式。默认值为 0600。
-	FilePerm os.FileMode `json:"fileperm" yaml:"fileperm"`
+	// filePerm 是日志文件的权限模式。默认值为 0600。
+	filePerm os.FileMode
 
 	/* ========== 运行时状态 ========== */
 	// size 是当前日志文件的大小（以字节为单位）。
@@ -129,7 +129,7 @@ func NewLogRotateX(filename string) *LogRotateX {
 		MaxBackups: 0,               // 0个备份文件 (默认不清理备份文件)
 		LocalTime:  true,            // 使用本地时间
 		Compress:   false,           // 禁用压缩
-		FilePerm:   defaultFilePerm, // 文件权限：所有者读写，组和其他用户只读
+		filePerm:   defaultFilePerm, // 文件权限
 	}
 
 	return logger
