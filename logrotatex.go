@@ -125,7 +125,7 @@ var New = NewLogRotateX
 func NewLogRotateX(filename string) *LogRotateX {
 	// 验证文件路径
 	if filename == "" {
-		panic("logrotatex: 日志文件路径不能为空")
+		panic("logrotatex: log file path cannot be empty")
 	}
 
 	// 清理文件路径
@@ -134,7 +134,7 @@ func NewLogRotateX(filename string) *LogRotateX {
 	// 确保目录存在
 	dir := filepath.Dir(filename)
 	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
-		panic(fmt.Sprintf("logrotatex: 创建日志目录失败: %v", err))
+		panic(fmt.Sprintf("logrotatex: failed to create log directory: %v", err))
 	}
 
 	// 创建 LogRotateX 实例并设置默认值
@@ -190,18 +190,18 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 双重检查确保文件句柄有效，如果为nil则尝试重新打开
 	if l.file == nil {
 		if err = l.openExistingOrNew(len(p)); err != nil {
-			return 0, fmt.Errorf("logrotatex: 无法打开文件进行写入: %w", err)
+			return 0, fmt.Errorf("logrotatex: unable to open file for writing: %w", err)
 		}
 		// 如果重新打开后仍然为nil，则返回错误
 		if l.file == nil {
-			return 0, fmt.Errorf("logrotatex: 文件句柄仍然无效，无法写入数据")
+			return 0, fmt.Errorf("logrotatex: file handle is still invalid, unable to write data")
 		}
 	}
 
 	// 安全地将所有数据写入文件
 	n, err = l.file.Write(p)
 	if err != nil {
-		return n, fmt.Errorf("logrotatex: 写入文件失败: %w", err)
+		return n, fmt.Errorf("logrotatex: failed to write to file: %w", err)
 	}
 	l.size += int64(n) // 更新当前文件大小
 
@@ -228,7 +228,7 @@ func (l *LogRotateX) Close() error {
 			defer func() {
 				// 使用defer确保即使在panic情况下也能发送结果
 				if r := recover(); r != nil {
-					done <- fmt.Errorf("关闭操作发生panic: %v", r)
+					done <- fmt.Errorf("logrotatex: panic occurred during close operation: %v", r)
 				}
 			}()
 
@@ -273,7 +273,7 @@ func (l *LogRotateX) Close() error {
 				}
 				l.mu.Unlock()
 			}
-			closeErr = fmt.Errorf("关闭操作超时: %w", ctx.Err())
+			closeErr = fmt.Errorf("logrotatex: close operation timeout: %w", ctx.Err())
 		}
 	})
 

@@ -31,7 +31,7 @@ func (l *LogRotateX) millRunOnce() error {
 	// 获取所有旧的日志文件信息（按时间戳降序排列）
 	files, err := l.oldLogFiles()
 	if err != nil {
-		return fmt.Errorf("logrotatex: 获取旧日志文件失败: %w", err)
+		return fmt.Errorf("logrotatex: failed to get old log files: %w", err)
 	}
 
 	// 定义需要压缩和移除的日志文件列表
@@ -84,7 +84,7 @@ func (l *LogRotateX) millRunOnce() error {
 
 		// 移除文件
 		if err := os.Remove(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: 移除日志文件 %s 失败: %w", filePath, err))
+			errors = append(errors, fmt.Errorf("logrotatex: failed to remove log file %s: %w", filePath, err))
 		}
 	}
 
@@ -106,19 +106,19 @@ func (l *LogRotateX) millRunOnce() error {
 
 		// 压缩文件
 		if err := comprx.PackOptions(compressPath, filePath, opts); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: 压缩日志文件 %s 失败: %w", filePath, err))
+			errors = append(errors, fmt.Errorf("logrotatex: failed to compress log file %s: %w", filePath, err))
 		}
 
 		// 删除压缩文件
 		if err := os.Remove(filePath); err != nil {
-			errors = append(errors, fmt.Errorf("logrotatex: 删除压缩文件 %s 失败: %w", compressPath, err))
+			errors = append(errors, fmt.Errorf("logrotatex: failed to delete compressed file %s: %w", compressPath, err))
 		}
 	}
 
 	// 如果有错误，返回聚合错误
 	if len(errors) > 0 {
 		var errMsg strings.Builder
-		errMsg.WriteString("logrotatex: millRunOnce 执行过程中发生多个错误:\n")
+		errMsg.WriteString("logrotatex: multiple errors occurred during millRunOnce execution:\n")
 		for i, err := range errors {
 			errMsg.WriteString(fmt.Sprintf("  %d. %v\n", i+1, err))
 		}
@@ -146,7 +146,7 @@ func (l *LogRotateX) millRun() {
 			// 执行一次日志文件的压缩和清理操作
 			if err := l.millRunOnce(); err != nil {
 				// 使用更好的错误记录方式
-				fmt.Printf("logrotatex: millRunOnce 执行失败: %v\n", err)
+				fmt.Printf("logrotatex: millRunOnce execution failed: %v\n", err)
 			}
 		case <-l.millCtx.Done():
 			// 收到context取消信号，安全退出goroutine
@@ -190,7 +190,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	// 读取日志文件所在目录中的所有文件
 	files, err := os.ReadDir(l.dir())
 	if err != nil {
-		return nil, fmt.Errorf("logrotatex: 无法读取日志文件目录: %w", err)
+		return nil, fmt.Errorf("logrotatex: unable to read log file directory: %w", err)
 	}
 
 	// 如果目录为空，直接返回
@@ -280,7 +280,7 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 
 	// 边界检查
 	if startPos >= endPos || startPos < 0 || endPos > len(filename) {
-		return time.Time{}, fmt.Errorf("logrotatex: 文件名格式不正确")
+		return time.Time{}, fmt.Errorf("logrotatex: incorrect filename format")
 	}
 
 	// 直接从计算位置提取时间戳
@@ -305,7 +305,7 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 	if prefix == "" {
 		// 检查文件名是否以指定的扩展名结尾
 		if !strings.HasSuffix(filename, ext) {
-			return time.Time{}, fmt.Errorf("logrotatex: 扩展名不匹配")
+			return time.Time{}, fmt.Errorf("logrotatex: extension does not match")
 		}
 		// 提取时间戳部分
 		ts := filename[:len(filename)-len(ext)]
@@ -314,11 +314,11 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 	}
 	// 检查文件名是否以指定的前缀开头
 	if !strings.HasPrefix(filename, prefix) {
-		return time.Time{}, fmt.Errorf("logrotatex: 前缀不匹配")
+		return time.Time{}, fmt.Errorf("logrotatex: prefix does not match")
 	}
 	// 检查文件名是否以指定的扩展名结尾
 	if !strings.HasSuffix(filename, ext) {
-		return time.Time{}, fmt.Errorf("logrotatex: 扩展名不匹配")
+		return time.Time{}, fmt.Errorf("logrotatex: extension does not match")
 	}
 
 	// 计算时间戳的起始和结束位置
@@ -327,7 +327,7 @@ func (l *LogRotateX) timeFromName(filename, prefix, ext string) (time.Time, erro
 
 	// 检查边界条件，防止数组越界
 	if startPos >= len(filename) || startPos >= endPos {
-		return time.Time{}, fmt.Errorf("logrotatex: 文件名格式不正确")
+		return time.Time{}, fmt.Errorf("logrotatex: incorrect filename format")
 	}
 
 	// 提取时间戳部分
