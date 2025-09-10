@@ -37,32 +37,8 @@ func (l *LogRotateX) millRunOnce() error {
 	// 定义需要压缩和移除的日志文件列表
 	var compress, remove []logInfo
 
-	// 处理备份保留数量规则
-	if l.MaxBackups > 0 && l.MaxBackups < len(files) {
-		// 直接保留最新的 MaxBackups 个文件，移除多余的文件
-		remove = append(remove, files[l.MaxBackups:]...)
-		files = files[:l.MaxBackups]
-	}
-
-	// 处理备份保留天数规则
-	if l.MaxAge > 0 {
-		// 计算截止时间戳
-		maxAgeDuration := time.Duration(int64(24*time.Hour) * int64(l.MaxAge)) // 计算当前时间
-		cutoffTime := currentTime().Add(-maxAgeDuration)                       // 计算截止时间
-
-		var remaining []logInfo
-		for _, f := range files {
-			// 如果文件时间戳早于截止时间，则加入保留列表
-			if f.timestamp.After(cutoffTime) {
-				// 添加到保留列表
-				remaining = append(remaining, f)
-			} else {
-				// 否则加入移除列表
-				remove = append(remove, f)
-			}
-		}
-		files = remaining
-	}
+	// 使用新的清理逻辑获取需要删除的文件
+	remove = l.getFilesToRemove(files)
 
 	// 处理压缩文件
 	if l.Compress {
@@ -107,6 +83,7 @@ func (l *LogRotateX) millRunOnce() error {
 		// 压缩文件
 		if err := comprx.PackOptions(compressPath, filePath, opts); err != nil {
 			errors = append(errors, fmt.Errorf("logrotatex: failed to compress log file %s: %w", filePath, err))
+			continue // 压缩失败就跳过，保留原文件
 		}
 
 		// 删除压缩文件
@@ -263,6 +240,127 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	sort.Sort(byFormatTime(logFiles))
 
 	return logFiles, nil
+}
+
+// getFilesToRemove 根据配置的清理规则，返回需要删除的文件列表
+//
+// 支持三种清理场景：
+//  1. 数量+天数组合（MaxBackups>0, MaxAge>0）
+//  2. 只按数量保留（MaxBackups>0, MaxAge=0）
+//  3. 只按天数保留（MaxBackups=0, MaxAge>0）
+//
+// 参数:
+//   - files: 所有日志文件信息列表
+//
+// 返回值:
+//   - []logInfo: 需要删除的日志文件列表
+func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
+	// 快速失败：没有文件
+	if len(files) == 0 {
+		return nil
+	}
+
+	// 快速失败：没有设置任何清理规则
+	hasBackupRule := l.MaxBackups > 0
+	hasAgeRule := l.MaxAge > 0
+	if !hasBackupRule && !hasAgeRule {
+		return nil
+	}
+
+	var keep []logInfo
+
+	// 场景1: 数量+天数组合
+	if hasBackupRule && hasAgeRule {
+		keep = l.keepByDaysAndCount(files, l.MaxAge, l.MaxBackups)
+		return l.calculateRemoveList(files, keep)
+	}
+
+	// 场景2: 只按数量保留
+	if hasBackupRule {
+		if l.MaxBackups >= len(files) {
+			return nil // 文件数量不超过限制，无需删除
+		}
+		keep = files[:l.MaxBackups]
+		return l.calculateRemoveList(files, keep)
+	}
+
+	// 场景3: 只按天数保留
+	if hasAgeRule {
+		cutoffTime := currentTime().Add(-time.Duration(l.MaxAge) * 24 * time.Hour)
+		for _, f := range files {
+			if f.timestamp.After(cutoffTime) {
+				keep = append(keep, f)
+			}
+		}
+		return l.calculateRemoveList(files, keep)
+	}
+
+	return nil
+}
+
+// keepByDaysAndCount 实现场景1的逻辑：先按天数筛选，再每天保留指定数量
+//
+// 参数:
+//   - files: 所有日志文件信息列表
+//   - maxAge: 最大保留天数
+//   - maxBackups: 每天保留的最大文件数量
+//
+// 返回值:
+//   - []logInfo: 需要保留的日志文件列表
+func (l *LogRotateX) keepByDaysAndCount(files []logInfo, maxAge, maxBackups int) []logInfo {
+	cutoffTime := currentTime().Add(-time.Duration(maxAge) * 24 * time.Hour)
+
+	// 按天分组
+	dayGroups := make(map[string][]logInfo)
+	for _, f := range files {
+		if f.timestamp.After(cutoffTime) {
+			dayKey := f.timestamp.Format("2006-01-02") // 按日期分组
+			dayGroups[dayKey] = append(dayGroups[dayKey], f)
+		}
+	}
+
+	var keep []logInfo
+	for _, dayFiles := range dayGroups {
+		// 每天保留最新的maxBackups个文件
+		// dayFiles已经按时间排序（从新到旧）
+		keepCount := maxBackups
+		if keepCount > len(dayFiles) {
+			keepCount = len(dayFiles)
+		}
+		keep = append(keep, dayFiles[:keepCount]...)
+	}
+
+	return keep
+}
+
+// calculateRemoveList 计算需要删除的文件列表
+//
+// 参数:
+//   - allFiles: 所有日志文件信息列表
+//   - keepFiles: 需要保留的日志文件列表
+//
+// 返回值:
+//   - []logInfo: 需要删除的日志文件列表
+func (l *LogRotateX) calculateRemoveList(allFiles, keepFiles []logInfo) []logInfo {
+	if len(keepFiles) == 0 {
+		return allFiles // 没有要保留的，全部删除
+	}
+
+	// 创建保留文件的映射表
+	keepSet := make(map[string]bool, len(keepFiles))
+	for _, f := range keepFiles {
+		keepSet[f.Name()] = true
+	}
+
+	// 找出需要删除的文件
+	var remove []logInfo
+	for _, f := range allFiles {
+		if !keepSet[f.Name()] {
+			remove = append(remove, f)
+		}
+	}
+
+	return remove
 }
 
 // fastTimeFromName 从文件名中快速解析时间戳。
