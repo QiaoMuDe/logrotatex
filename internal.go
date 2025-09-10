@@ -227,17 +227,21 @@ func (l *LogRotateX) openNew() error {
 		return fmt.Errorf("logrotatex: unable to open new log file: %w", err)
 	}
 
-	// 如果之前有打开的文件，先关闭它以防止文件句柄泄漏
-	if l.file != nil {
-		if closeErr := l.file.Close(); closeErr != nil {
-			// 即使关闭旧文件失败，也要继续使用新文件，但记录错误
-			_ = f.Close() // 关闭新打开的文件
-			return fmt.Errorf("logrotatex: failed to close old log file: %w", closeErr)
+	// 先保存旧文件引用
+	oldFile := l.file
+
+	// 立即设置新文件状态（确保状态一致性）
+	l.file = f
+	l.size = 0
+
+	// 然后尝试关闭旧文件（失败也不影响新文件的使用）
+	if oldFile != nil {
+		if closeErr := oldFile.Close(); closeErr != nil {
+			// 记录错误但不返回失败，因为新文件已经可用
+			fmt.Printf("logrotatex: warning - failed to close old file: %v\n", closeErr)
 		}
 	}
 
-	l.file = f // 将打开的文件赋值给 LogRotateX 的 file 字段
-	l.size = 0 // 重置文件大小为 0
 	return nil
 }
 
@@ -315,28 +319,29 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	}
 
 	// 以追加模式打开现有日志文件
-	// 使用更安全的默认权限0600
 	filePerm := l.FilePerm
 	if filePerm == 0 {
-		filePerm = os.FileMode(defaultFilePerm) // 修复：使用更安全的默认权限
+		filePerm = os.FileMode(defaultFilePerm)
 	}
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, filePerm)
 	if err != nil {
-		// 如果打开现有日志文件失败, 则通过openNew创建新文件
-		return l.openNew()
+		return l.openNew() // 如果打开文件失败, 则创建新文件
 	}
 
-	// 如果之前有打开的文件，先关闭它以防止文件句柄泄漏
-	if l.file != nil {
-		if closeErr := l.file.Close(); closeErr != nil {
-			// 即使关闭旧文件失败，也要继续使用新文件，但记录错误
-			_ = file.Close() // 关闭新打开的文件
-			return fmt.Errorf("logrotatex: failed to close old log file: %w", closeErr)
+	// 先保存旧文件引用
+	oldFile := l.file
+
+	// 立即更新日志对象的文件句柄和当前文件大小
+	l.file = file
+	l.size = info.Size()
+
+	// 然后尝试关闭旧文件（失败也不影响新文件的使用）
+	if oldFile != nil {
+		if closeErr := oldFile.Close(); closeErr != nil {
+			// 记录错误但不返回失败，因为新文件已经可用
+			fmt.Printf("logrotatex: warning - failed to close old file: %v\n", closeErr)
 		}
 	}
 
-	// 更新日志对象的文件句柄和当前文件大小
-	l.file = file
-	l.size = info.Size()
 	return nil
 }
