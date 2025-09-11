@@ -582,7 +582,7 @@ func TestJson(t *testing.T) {
 	// 定义一个 JSON 数据，去除第一行的换行符
 	data := []byte(`
 {
-	"filename": "foo",
+	"logfilepath": "foo",
 	"maxsize": 5,
 	"maxage": 10,
 	"maxfiles": 3,
@@ -875,4 +875,330 @@ func getFileNames(files []os.DirEntry) []string {
 		names = append(names, file.Name())
 	}
 	return names
+}
+
+// TestKeepByDaysAndCount 测试 keepByDaysAndCount 方法的各种场景
+func TestKeepByDaysAndCount(t *testing.T) {
+	// 设置固定的当前时间用于测试
+	fixedTime := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	currentTime = func() time.Time { return fixedTime }
+	defer func() { currentTime = originalCurrentTime }()
+
+	// 创建临时目录
+	tempDir, err := os.MkdirTemp("", "keepbydaysandcount_test")
+	if err != nil {
+		t.Fatalf("创建临时目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// 创建 LogRotateX 实例
+	l := &LogRotateX{
+		LogFilePath: filepath.Join(tempDir, "test.log"),
+	}
+
+	tests := []struct {
+		name        string
+		maxAge      int
+		maxFiles    int
+		files       []logInfo
+		expectedLen int
+		description string
+	}{
+		{
+			name:     "基本场景-3天内每天保留2个文件",
+			maxAge:   3,
+			maxFiles: 2,
+			files: []logInfo{
+				// 今天 (2025-01-15) - 3个文件
+				createTestLogInfo("app_20250115120000.log", fixedTime.Add(-1*time.Hour)),
+				createTestLogInfo("app_20250115100000.log", fixedTime.Add(-2*time.Hour)),
+				createTestLogInfo("app_20250115080000.log", fixedTime.Add(-4*time.Hour)),
+
+				// 1天前 (2025-01-14) - 4个文件
+				createTestLogInfo("app_20250114200000.log", fixedTime.Add(-16*time.Hour)),
+				createTestLogInfo("app_20250114180000.log", fixedTime.Add(-18*time.Hour)),
+				createTestLogInfo("app_20250114160000.log", fixedTime.Add(-20*time.Hour)),
+				createTestLogInfo("app_20250114140000.log", fixedTime.Add(-22*time.Hour)),
+
+				// 2天前 (2025-01-13) - 2个文件
+				createTestLogInfo("app_20250113150000.log", fixedTime.Add(-45*time.Hour)),
+				createTestLogInfo("app_20250113120000.log", fixedTime.Add(-48*time.Hour)),
+
+				// 4天前 (2025-01-11) - 应该被过滤掉
+				createTestLogInfo("app_20250111100000.log", fixedTime.Add(-97*time.Hour)),
+			},
+			expectedLen: 6, // 今天2个 + 1天前2个 + 2天前2个 = 6个
+			description: "应该保留3天内的文件，每天最多2个最新的",
+		},
+		{
+			name:     "边界条件-maxAge为1天",
+			maxAge:   1,
+			maxFiles: 3,
+			files: []logInfo{
+				// 今天
+				createTestLogInfo("app_20250115120000.log", fixedTime.Add(-1*time.Hour)),
+				createTestLogInfo("app_20250115100000.log", fixedTime.Add(-2*time.Hour)),
+
+				// 昨天 (刚好在1天边界内)
+				createTestLogInfo("app_20250114120000.log", fixedTime.Add(-24*time.Hour+1*time.Hour)),
+
+				// 超过1天
+				createTestLogInfo("app_20250114100000.log", fixedTime.Add(-25*time.Hour)),
+			},
+			expectedLen: 3, // 今天2个 + 昨天1个 = 3个
+			description: "1天边界测试，应该保留刚好在边界内的文件",
+		},
+		{
+			name:     "maxBackups为1-每天只保留最新的1个",
+			maxAge:   2,
+			maxFiles: 1,
+			files: []logInfo{
+				// 今天 - 3个文件，只保留最新的1个
+				createTestLogInfo("app_20250115120000.log", fixedTime.Add(-1*time.Hour)), // 最新，应该保留
+				createTestLogInfo("app_20250115100000.log", fixedTime.Add(-2*time.Hour)), // 应该删除
+				createTestLogInfo("app_20250115080000.log", fixedTime.Add(-4*time.Hour)), // 应该删除
+
+				// 1天前 - 2个文件，只保留最新的1个
+				createTestLogInfo("app_20250114200000.log", fixedTime.Add(-16*time.Hour)), // 最新，应该保留
+				createTestLogInfo("app_20250114180000.log", fixedTime.Add(-18*time.Hour)), // 应该删除
+			},
+			expectedLen: 2, // 今天1个 + 1天前1个 = 2个
+			description: "每天只保留最新的1个文件",
+		},
+		{
+			name:        "空文件列表",
+			maxAge:      3,
+			maxFiles:    2,
+			files:       []logInfo{},
+			expectedLen: 0,
+			description: "空文件列表应该返回空结果",
+		},
+		{
+			name:     "所有文件都超过保留天数",
+			maxAge:   2,
+			maxFiles: 3,
+			files: []logInfo{
+				createTestLogInfo("app_20250110100000.log", fixedTime.Add(-120*time.Hour)), // 5天前
+				createTestLogInfo("app_20250109100000.log", fixedTime.Add(-144*time.Hour)), // 6天前
+			},
+			expectedLen: 0,
+			description: "所有文件都超过保留天数，应该返回空结果",
+		},
+		{
+			name:     "某天文件数少于maxBackups",
+			maxAge:   3,
+			maxFiles: 5,
+			files: []logInfo{
+				// 今天只有2个文件，少于maxBackups(5)
+				createTestLogInfo("app_20250115120000.log", fixedTime.Add(-1*time.Hour)),
+				createTestLogInfo("app_20250115100000.log", fixedTime.Add(-2*time.Hour)),
+
+				// 1天前有1个文件
+				createTestLogInfo("app_20250114200000.log", fixedTime.Add(-16*time.Hour)),
+			},
+			expectedLen: 3, // 应该保留所有3个文件
+			description: "当某天文件数少于maxBackups时，应该保留所有文件",
+		},
+		{
+			name:     "跨天边界测试",
+			maxAge:   1,
+			maxFiles: 2,
+			files: []logInfo{
+				// 今天 23:59
+				createTestLogInfo("app_20250115235900.log", time.Date(2025, 1, 15, 23, 59, 0, 0, time.UTC)),
+				// 昨天 13:00 (在1天边界内)
+				createTestLogInfo("app_20250114130000.log", time.Date(2025, 1, 14, 13, 0, 0, 0, time.UTC)),
+				// 前天 23:59 (超过1天)
+				createTestLogInfo("app_20250113235900.log", time.Date(2025, 1, 13, 23, 59, 0, 0, time.UTC)),
+			},
+			expectedLen: 2, // 今天1个 + 昨天1个 = 2个
+			description: "跨天边界测试，验证按天分组的正确性",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := l.keepByDaysAndCount(tt.files, tt.maxAge, tt.maxFiles)
+
+			if len(result) != tt.expectedLen {
+				t.Errorf("期望保留 %d 个文件，实际保留 %d 个文件", tt.expectedLen, len(result))
+				t.Logf("描述: %s", tt.description)
+				t.Logf("输入文件:")
+				for i, f := range tt.files {
+					t.Logf("  [%d] %s - %s", i, f.Name(), f.timestamp.Format("2006-01-02 15:04:05"))
+				}
+				t.Logf("保留的文件:")
+				for i, f := range result {
+					t.Logf("  [%d] %s - %s", i, f.Name(), f.timestamp.Format("2006-01-02 15:04:05"))
+				}
+			}
+
+			// 验证保留的文件都在时间范围内
+			cutoffTime := fixedTime.Add(-time.Duration(tt.maxAge) * 24 * time.Hour)
+			for _, f := range result {
+				if !f.timestamp.After(cutoffTime) {
+					t.Errorf("保留的文件 %s 时间戳 %s 超出了保留范围 %s",
+						f.Name(), f.timestamp.Format("2006-01-02 15:04:05"), cutoffTime.Format("2006-01-02 15:04:05"))
+				}
+			}
+
+			// 验证每天保留的文件数不超过maxBackups
+			dayGroups := make(map[string][]logInfo)
+			for _, f := range result {
+				dayKey := f.timestamp.Format("2006-01-02")
+				dayGroups[dayKey] = append(dayGroups[dayKey], f)
+			}
+
+			for day, dayFiles := range dayGroups {
+				if len(dayFiles) > tt.maxFiles {
+					t.Errorf("日期 %s 保留了 %d 个文件，超过了 maxFiles(%d)",
+						day, len(dayFiles), tt.maxFiles)
+				}
+
+				// 验证每天保留的文件是按时间排序的最新文件
+				for i := 0; i < len(dayFiles)-1; i++ {
+					if dayFiles[i].timestamp.Before(dayFiles[i+1].timestamp) {
+						t.Errorf("日期 %s 的文件没有按时间从新到旧排序", day)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestKeepByDaysAndCountRealFiles 使用真实文件进行集成测试
+func TestKeepByDaysAndCountRealFiles(t *testing.T) {
+	// 创建临时目录
+	tempDir, err := os.MkdirTemp("", "keepbydaysandcount_real_test")
+	if err != nil {
+		t.Fatalf("创建临时目录失败: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// 创建 LogRotateX 实例
+	l := &LogRotateX{
+		LogFilePath: filepath.Join(tempDir, "test.log"),
+	}
+
+	// 设置固定时间
+	fixedTime := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+	originalCurrentTime := currentTime
+	currentTime = func() time.Time { return fixedTime }
+	defer func() { currentTime = originalCurrentTime }()
+
+	// 创建测试文件 (文件名前缀必须与LogFilePath匹配)
+	testFiles := []struct {
+		name      string
+		timestamp time.Time
+		content   string
+	}{
+		// 今天的文件
+		{"test_20250115120000.log", fixedTime.Add(-1 * time.Hour), "今天最新"},
+		{"test_20250115100000.log", fixedTime.Add(-2 * time.Hour), "今天较旧"},
+		{"test_20250115080000.log", fixedTime.Add(-4 * time.Hour), "今天最旧"},
+
+		// 1天前的文件
+		{"test_20250114200000.log", fixedTime.Add(-16 * time.Hour), "昨天最新"},
+		{"test_20250114180000.log", fixedTime.Add(-18 * time.Hour), "昨天较旧"},
+
+		// 3天前的文件 (应该被过滤)
+		{"test_20250112100000.log", fixedTime.Add(-73 * time.Hour), "3天前"},
+	}
+
+	// 创建实际文件
+	for _, tf := range testFiles {
+		filePath := filepath.Join(tempDir, tf.name)
+		err := os.WriteFile(filePath, []byte(tf.content), 0644)
+		if err != nil {
+			t.Fatalf("创建测试文件 %s 失败: %v", tf.name, err)
+		}
+
+		// 设置文件修改时间
+		err = os.Chtimes(filePath, tf.timestamp, tf.timestamp)
+		if err != nil {
+			t.Fatalf("设置文件 %s 时间失败: %v", tf.name, err)
+		}
+	}
+
+	// 获取文件信息
+	files, err := l.oldLogFiles()
+	if err != nil {
+		t.Fatalf("获取现有日志文件失败: %v", err)
+	}
+
+	t.Logf("找到 %d 个日志文件:", len(files))
+	for _, f := range files {
+		t.Logf("  %s - %s", f.Name(), f.timestamp.Format("2006-01-02 15:04:05"))
+	}
+
+	// 测试 keepByDaysAndCount
+	maxAge := 2
+	maxFiles := 2
+	keepFiles := l.keepByDaysAndCount(files, maxAge, maxFiles)
+
+	t.Logf("保留 %d 个文件 (maxAge=%d, maxFiles=%d):", len(keepFiles), maxAge, maxFiles)
+	for _, f := range keepFiles {
+		t.Logf("  %s - %s", f.Name(), f.timestamp.Format("2006-01-02 15:04:05"))
+	}
+
+	// 验证结果
+	expectedKeepCount := 4 // 今天2个 + 昨天2个 = 4个
+	if len(keepFiles) != expectedKeepCount {
+		t.Errorf("期望保留 %d 个文件，实际保留 %d 个", expectedKeepCount, len(keepFiles))
+	}
+
+	// 验证保留的文件名
+	expectedNames := []string{
+		"test_20250115120000.log", // 今天最新
+		"test_20250115100000.log", // 今天次新
+		"test_20250114200000.log", // 昨天最新
+		"test_20250114180000.log", // 昨天次新
+	}
+
+	keepNames := make([]string, len(keepFiles))
+	for i, f := range keepFiles {
+		keepNames[i] = f.Name()
+	}
+
+	for _, expectedName := range expectedNames {
+		found := false
+		for _, keepName := range keepNames {
+			if keepName == expectedName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("期望保留的文件 %s 没有在结果中找到", expectedName)
+		}
+	}
+}
+
+// BenchmarkKeepByDaysAndCount 性能测试
+func BenchmarkKeepByDaysAndCount(b *testing.B) {
+	// 创建大量测试文件
+	fixedTime := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+	var files []logInfo
+
+	// 生成30天的文件，每天10个文件
+	for day := 0; day < 30; day++ {
+		for hour := 0; hour < 10; hour++ {
+			timestamp := fixedTime.Add(-time.Duration(day*24+hour) * time.Hour)
+			files = append(files, createTestLogInfo(
+				fmt.Sprintf("app_%s.log", timestamp.Format("20060102150405")),
+				timestamp,
+			))
+		}
+	}
+
+	l := &LogRotateX{}
+	originalCurrentTime := currentTime
+	currentTime = func() time.Time { return fixedTime }
+	defer func() { currentTime = originalCurrentTime }()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		l.keepByDaysAndCount(files, 7, 3) // 保留7天，每天3个文件
+	}
 }

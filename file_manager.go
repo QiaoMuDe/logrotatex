@@ -285,12 +285,18 @@ func (l *LogRotateX) keepByDaysAndCount(files []logInfo, maxAge, maxBackups int)
 
 	var keep []logInfo
 	for _, dayFiles := range dayGroups {
+		// 对每天的文件按时间排序（从新到旧）
+		sort.Slice(dayFiles, func(i, j int) bool {
+			return dayFiles[i].timestamp.After(dayFiles[j].timestamp)
+		})
+
 		// 每天保留最新的maxBackups个文件
-		// dayFiles已经按时间排序（从新到旧）
 		keepCount := maxBackups
 		if keepCount > len(dayFiles) {
 			keepCount = len(dayFiles)
 		}
+
+		// 保留最新的文件
 		keep = append(keep, dayFiles[:keepCount]...)
 	}
 

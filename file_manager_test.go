@@ -166,22 +166,28 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 	now := time.Now()
 
 	// 创建测试文件列表（每天多个文件）
+	// 使用动态生成的文件名，确保与时间戳匹配
+	today := now.Format("20060102")
+	day1 := now.Add(-25 * time.Hour).Format("20060102")
+	day2 := now.Add(-49 * time.Hour).Format("20060102")
+	day4 := now.Add(-97 * time.Hour).Format("20060102")
+
 	files := []logInfo{
 		// 今天的文件
-		createTestLogInfo("app_20240110090000.log", now.Add(-1*time.Hour)),
-		createTestLogInfo("app_20240110060000.log", now.Add(-4*time.Hour)),
-		createTestLogInfo("app_20240110030000.log", now.Add(-7*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s090000.log", today), now.Add(-1*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s060000.log", today), now.Add(-4*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s030000.log", today), now.Add(-7*time.Hour)),
 
-		// 1天前的文件
-		createTestLogInfo("app_20240109180000.log", now.Add(-25*time.Hour)),
-		createTestLogInfo("app_20240109120000.log", now.Add(-31*time.Hour)),
-		createTestLogInfo("app_20240109060000.log", now.Add(-37*time.Hour)),
+		// 1天前的文件 (确保都在同一天)
+		createTestLogInfo(fmt.Sprintf("app_%s180000.log", day1), now.Add(-25*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s120000.log", day1), now.Add(-28*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s060000.log", day1), now.Add(-30*time.Hour)),
 
 		// 2天前的文件
-		createTestLogInfo("app_20240108150000.log", now.Add(-49*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s150000.log", day2), now.Add(-49*time.Hour)),
 
 		// 4天前的文件（超过3天，应该被删除）
-		createTestLogInfo("app_20240106100000.log", now.Add(-97*time.Hour)),
+		createTestLogInfo(fmt.Sprintf("app_%s100000.log", day4), now.Add(-97*time.Hour)),
 	}
 
 	tests := []struct {
@@ -196,9 +202,9 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 			maxBackups: 2,
 			maxAge:     3,
 			expectedRemove: []string{
-				"app_20240110030000.log", // 今天第3个文件
-				"app_20240109060000.log", // 1天前第3个文件
-				"app_20240106100000.log", // 超过3天
+				fmt.Sprintf("app_%s030000.log", today), // 今天第3个文件
+				fmt.Sprintf("app_%s060000.log", day1),  // 1天前第3个文件
+				fmt.Sprintf("app_%s100000.log", day4),  // 超过3天
 			},
 			description: "先筛选3天内文件，再每天保留最新2个",
 		},
@@ -207,12 +213,12 @@ func TestGetFilesToRemove_ByCountAndAge(t *testing.T) {
 			maxBackups: 1,
 			maxAge:     2,
 			expectedRemove: []string{
-				"app_20240110060000.log", // 今天第2个文件
-				"app_20240110030000.log", // 今天第3个文件
-				"app_20240109120000.log", // 1天前第2个文件
-				"app_20240109060000.log", // 1天前第3个文件
-				"app_20240108150000.log", // 超过2天
-				"app_20240106100000.log", // 超过2天
+				fmt.Sprintf("app_%s060000.log", today), // 今天第2个文件
+				fmt.Sprintf("app_%s030000.log", today), // 今天第3个文件
+				fmt.Sprintf("app_%s120000.log", day1),  // 1天前第2个文件
+				fmt.Sprintf("app_%s060000.log", day1),  // 1天前第3个文件
+				fmt.Sprintf("app_%s150000.log", day2),  // 超过2天
+				fmt.Sprintf("app_%s100000.log", day4),  // 超过2天
 			},
 			description: "先筛选2天内文件，再每天保留最新1个",
 		},
