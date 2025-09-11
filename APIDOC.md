@@ -118,7 +118,8 @@ logger := logrotatex.NewLogRotateX("logs/app.log")
 
 #### 参数
 
-- `filename string`: 日志文件的路径，会进行安全验证和清理
+- `logfilepath string`: 日志文件的路径，会进行安全验证和清理
+
 
 #### 返回值
 
@@ -134,7 +135,8 @@ logger := logrotatex.NewLogRotateX("logs/app.log")
 ### NewLogRotateX
 
 ```go
-func NewLogRotateX(filename string) *LogRotateX
+func NewLogRotateX(logfilepath string) *LogRotateX
+
 ```
 
 **描述**: 创建一个新的 LogRotateX 实例，使用指定的文件路径和合理的默认配置。
@@ -145,7 +147,7 @@ func NewLogRotateX(filename string) *LogRotateX
 
 #### 参数
 
-- `filename string`: 日志文件的路径，会进行安全验证和清理
+- `logfilepath string`: 日志文件的路径，会进行安全验证和清理
 
 #### 返回值
 
@@ -158,7 +160,7 @@ func NewLogRotateX(filename string) *LogRotateX
 | MaxSize    | 10MB   | 单个日志文件最大大小                      |
 | MaxAge     | 0天    | 日志文件最大保留时间，0表示不清理历史文件 |
 | MaxFiles   | 0个    | 最大历史文件数量，0表示不限制文件数量     |
-| LocalTime  | true   | 使用本地时间                              |
+| LocalTime  | true   | 使用本地时间记录日志文件的轮转时间        |
 | Compress   | false  | 禁用压缩                                  |
 
 > **注意**: 如果文件路径不安全或创建失败，此函数会 panic
