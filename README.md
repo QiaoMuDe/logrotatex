@@ -358,7 +358,7 @@ type LogRotateX struct {
 
 | 方法 | 描述 | 返回值 |
 |------|------|--------|
-| `NewLogRotateX(filename string)` | 创建新的日志轮转器 | `*LogRotateX` |
+| `NewLogRotateX(logfilepath string)` | 创建新的日志轮转器 | `*LogRotateX` |
 | `Write(p []byte)` | 写入日志数据 | `(int, error)` |
 | `Close()` | 关闭日志文件 | `error` |
 | `Sync()` | 同步数据到磁盘 | `error` |
