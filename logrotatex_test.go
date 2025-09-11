@@ -49,7 +49,7 @@ func TestNewFile(t *testing.T) {
 	dir := makeTempDir("TestNewFile", t)
 	defer func() { _ = os.RemoveAll(dir) }()
 	l := &LogRotateX{
-		Filename: logFile(dir),
+		LogFilePath: logFile(dir),
 	}
 	defer func() { _ = l.Close() }()
 	b := []byte("boo!")
@@ -130,7 +130,7 @@ func TestOpenExisting(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定要操作的日志文件路径
 	l := &LogRotateX{
-		Filename: filename,
+		LogFilePath: filename,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -174,8 +174,8 @@ func TestWriteTooLong(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径和最大文件大小
 	l := &LogRotateX{
-		Filename: logFile(dir),
-		MaxSize:  5,
+		LogFilePath: logFile(dir),
+		MaxSize:     5,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -241,7 +241,7 @@ func TestMakeLogDir(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，指定要操作的日志文件路径
 	l := &LogRotateX{
-		Filename: filename,
+		LogFilePath: filename,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -282,9 +282,9 @@ func TestRotate(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大备份数和最大文件大小
 	l := &LogRotateX{
-		Filename: filename,
-		MaxSize:  1,
-		MaxFiles: 1,
+		LogFilePath: filename,
+		MaxSize:     1,
+		MaxFiles:    1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -366,9 +366,9 @@ func TestCompressOnRotate(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，启用压缩功能，指定日志文件路径和最大文件大小
 	l := &LogRotateX{
-		Compress: true,
-		Filename: filename,
-		MaxSize:  10,
+		Compress:    true,
+		LogFilePath: filename,
+		MaxSize:     10,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -472,9 +472,9 @@ func TestCompressOnResume(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，启用压缩功能，指定日志文件路径和最大文件大小
 	l := &LogRotateX{
-		Compress: true,
-		Filename: filename,
-		MaxSize:  10, // 10字节
+		Compress:    true,
+		LogFilePath: filename,
+		MaxSize:     10, // 10字节
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -596,8 +596,8 @@ func TestJson(t *testing.T) {
 	err := json.Unmarshal(data, &l)
 	// 验证反序列化操作是否成功
 	isNil(err, t)
-	// 验证反序列化后的实例的 Filename 字段是否与 JSON 数据中的值一致
-	equals("foo", l.Filename, t)
+	// 验证反序列化后的实例的 LogFilePath 字段是否与 JSON 数据中的值一致
+	equals("foo", l.LogFilePath, t)
 	// 验证反序列化后的实例的 MaxSize 字段是否与 JSON 数据中的值一致
 	equals(5, l.MaxSize, t)
 	// 验证反序列化后的实例的 MaxAge 字段是否与 JSON 数据中的值一致
@@ -728,10 +728,10 @@ func TestLogRunInfo(t *testing.T) {
 	t.Log("第一阶段：测试基本写入功能")
 
 	logger := &LogRotateX{
-		Filename: filepath.Join(dir, "test.log"),
-		MaxSize:  1,     // 1KB，容易触发轮转
-		MaxFiles: 2,     // 最多保留2个备份文件
-		Compress: false, // 先不启用压缩，避免Windows文件句柄问题
+		LogFilePath: filepath.Join(dir, "test.log"),
+		MaxSize:     1,     // 1KB，容易触发轮转
+		MaxFiles:    2,     // 最多保留2个备份文件
+		Compress:    false, // 先不启用压缩，避免Windows文件句柄问题
 	}
 	defer func() { _ = logger.Close() }()
 
@@ -817,10 +817,10 @@ func TestLogRunInfo(t *testing.T) {
 
 	// 创建启用压缩的新logger
 	compressLogger := &LogRotateX{
-		Filename: filepath.Join(dir, "compress_test.log"),
-		MaxSize:  1,    // 1KB
-		MaxFiles: 1,    // 只保留1个备份
-		Compress: true, // 启用压缩
+		LogFilePath: filepath.Join(dir, "compress_test.log"),
+		MaxSize:     1,    // 1KB
+		MaxFiles:    1,    // 只保留1个备份
+		Compress:    true, // 启用压缩
 	}
 	defer func() { _ = compressLogger.Close() }()
 

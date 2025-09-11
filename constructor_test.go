@@ -29,7 +29,7 @@ func TestNewLogRotateX_DirectoryPermissions(t *testing.T) {
 	}()
 
 	// 检查目录是否被创建
-	dir := filepath.Dir(logger.Filename)
+	dir := filepath.Dir(logger.LogFilePath)
 	info, err := os.Stat(dir)
 	if err != nil {
 		t.Fatalf("目录应该被创建: %v", err)
@@ -65,7 +65,7 @@ func BenchmarkNewLogRotateX(b *testing.B) {
 		if err := logger.Close(); err != nil {
 			b.Logf("关闭logger失败: %v", err)
 		}
-		if err := os.Remove(logger.Filename); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(logger.LogFilePath); err != nil && !os.IsNotExist(err) {
 			b.Logf("删除文件失败: %v", err)
 		}
 	}

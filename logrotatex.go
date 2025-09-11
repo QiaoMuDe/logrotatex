@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -43,23 +44,23 @@ var (
 // 每当写入操作会导致当前日志文件大小超过 MaxSize 兆字节时，当前文件会被关闭、重命名，
 // 并使用原始文件名创建一个新的日志文件。因此，你提供给 LogRotateX 的文件名始终是"当前"的日志文件。
 //
-// 备份文件使用提供给 LogRotateX 的日志文件名，格式为 `name-timestamp.ext`，
+// 日志文件使用提供给 LogRotateX 的日志文件名，格式为 `name_timestamp.ext`，
 // 其中 name 是不带扩展名的文件名，timestamp 是日志轮转时的时间，格式为 `20060102150405`，
-// ext 是原始扩展名。例如，如果你的 LogRotateX.Filename 是 `/var/log/foo/server.log`，
-// 在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server-20161104183000.log`。
+// ext 是原始扩展名。例如，如果你的 LogRotateX.LogFilePath 是 `/var/log/foo/server.log`，
+// 在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server_20161104183000.log`。
 //
 // # 清理旧日志文件
 //
 // 每当创建新的日志文件时，可能会删除旧的日志文件。根据编码的时间戳，最近的文件会被保留，
-// 最多保留数量等于 MaxBackups（如果 MaxSize 为 0，则保留所有文件）。
-// 任何编码时间戳早于 MaxAge 天的文件都会被删除，无论 MaxSize 的设置如何。
+// 最多保留数量等于 MaxFiles（如果 MaxFiles 为 0，则保留所有文件）。
+// 任何编码时间戳早于 MaxAge 天的文件都会被删除，无论 MaxFiles 的设置如何。
 // 请注意，时间戳中编码的时间是轮转时间，可能与该文件最后一次写入的时间不同。
 //
 // 如果 MaxFiles 和 MaxAge 都为 0，则不会删除任何旧日志文件。
 type LogRotateX struct {
-	// Filename 是写入日志的文件。备份日志文件将保留在同一目录中。
+	// LogFilePath 是写入日志的文件路径。备份日志文件将保留在同一目录中。
 	// 如果该值为空，则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
-	Filename string `json:"filename" yaml:"filename"`
+	LogFilePath string `json:"logfilepath" yaml:"logfilepath"`
 
 	// MaxSize 是单个日志文件的最大大小（以 MB 为单位）。默认值为 10 MB。
 	// 超过此大小的日志文件将被轮转。
@@ -94,36 +95,39 @@ var New = NewLogRotateX
 // NewLogRotateX 创建一个新的 LogRotateX 实例，使用默认配置。
 //
 // 参数:
-//   - filename: 日志文件路径
+//   - logFilePath: 日志文件路径
 //
 // 返回值:
 //   - *LogRotateX: 配置好的实例
 //
 // 默认配置: MaxSize=10MB, MaxAge=0, MaxSize=0, LocalTime=true, Compress=false
-func NewLogRotateX(filename string) *LogRotateX {
+func NewLogRotateX(logFilePath string) *LogRotateX {
+	// 清理文件路径
+	logFilePath = filepath.Clean(logFilePath)
+
+	// 去除左右空格
+	logFilePath = strings.TrimSpace(logFilePath)
+
 	// 验证文件路径
-	if filename == "" {
+	if logFilePath == "" {
 		panic("logrotatex: log file path cannot be empty")
 	}
 
-	// 清理文件路径
-	filename = filepath.Clean(filename)
-
 	// 确保目录存在
-	dir := filepath.Dir(filename)
+	dir := filepath.Dir(logFilePath)
 	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
 		panic(fmt.Sprintf("logrotatex: failed to create log directory: %v", err))
 	}
 
 	// 创建 LogRotateX 实例并设置默认值
 	logger := &LogRotateX{
-		Filename:  filename,        // 日志文件路径
-		MaxSize:   10,              // 10MB
-		MaxAge:    0,               // 0天 (默认不清理历史文件)
-		MaxFiles:  0,               // 0个备份文件 (默认不清理备份文件)
-		LocalTime: true,            // 使用本地时间
-		Compress:  false,           // 禁用压缩
-		filePerm:  defaultFilePerm, // 文件权限
+		LogFilePath: logFilePath,     // 日志文件路径
+		MaxSize:     10,              // 10MB
+		MaxAge:      0,               // 0天 (默认不清理历史文件)
+		MaxFiles:    0,               // 0个备份文件 (默认不清理备份文件)
+		LocalTime:   true,            // 使用本地时间
+		Compress:    false,           // 禁用压缩
+		filePerm:    defaultFilePerm, // 文件权限
 	}
 
 	return logger

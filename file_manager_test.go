@@ -340,10 +340,10 @@ func TestFileScanning_Performance(t *testing.T) {
 	// 创建LogRotateX实例
 	logPath := filepath.Join(logsDir, "app.log")
 	logger := &LogRotateX{
-		Filename: logPath,
-		MaxSize:  1,
-		MaxFiles: 10,
-		MaxAge:   30,
+		LogFilePath: logPath,
+		MaxSize:     1,
+		MaxFiles:    10,
+		MaxAge:      30,
 	}
 
 	// 性能测试
@@ -389,12 +389,12 @@ func TestMultipleCloseOperations(t *testing.T) {
 	logFile := filepath.Join(logsDir, "test_multiple_close.log")
 
 	logger := &LogRotateX{
-		Filename:  logFile,
-		MaxSize:   10,
-		MaxFiles:  3,
-		MaxAge:    1,
-		LocalTime: true,
-		Compress:  false,
+		LogFilePath: logFile,
+		MaxSize:     10,
+		MaxFiles:    3,
+		MaxAge:      1,
+		LocalTime:   true,
+		Compress:    false,
 	}
 
 	// 写入一些数据

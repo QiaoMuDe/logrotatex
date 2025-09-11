@@ -35,8 +35,8 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -63,8 +63,8 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -91,9 +91,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB = 1048576 bytes
-			MaxFiles: 1,
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB = 1048576 bytes
+			MaxFiles:    1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -151,9 +151,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
-			MaxFiles: 2,
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB
+			MaxFiles:    2,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -185,9 +185,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
-			MaxFiles: 0, // 不限制备份数量
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB
+			MaxFiles:    0, // 不限制备份数量
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -256,9 +256,9 @@ func TestBoundaryConditions(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
-			MaxAge:   0, // 不限制文件年龄
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB
+			MaxAge:      0, // 不限制文件年龄
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -296,8 +296,8 @@ func TestErrorPaths(t *testing.T) {
 		// 使用一个确实无效的路径（在Windows和Unix上都无效）
 		invalidPath := filepath.Join("Z:", "nonexistent", "invalid", "path", "test.log")
 		l := &LogRotateX{
-			Filename: invalidPath,
-			MaxSize:  1,
+			LogFilePath: invalidPath,
+			MaxSize:     1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -339,8 +339,8 @@ func TestErrorPaths(t *testing.T) {
 		}
 
 		l := &LogRotateX{
-			Filename: filepath.Join(dir, "test.log"),
-			MaxSize:  1,
+			LogFilePath: filepath.Join(dir, "test.log"),
+			MaxSize:     1,
 		}
 		defer func() {
 			if closeErr := l.Close(); closeErr != nil {
@@ -358,8 +358,8 @@ func TestErrorPaths(t *testing.T) {
 		dir := makeBoundaryTempDir("TestErrorPaths_FileDeleted", t)
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1,
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1,
 		}
 
 		// 先写入一些数据
@@ -375,7 +375,7 @@ func TestErrorPaths(t *testing.T) {
 		}
 
 		// 外部删除文件
-		err = os.Remove(l.Filename)
+		err = os.Remove(l.LogFilePath)
 		if err != nil {
 			t.Fatalf("删除文件失败: %v", err)
 		}
@@ -387,7 +387,7 @@ func TestErrorPaths(t *testing.T) {
 		}
 
 		// 检查文件是否重新创建
-		if _, statErr := os.Stat(l.Filename); os.IsNotExist(statErr) {
+		if _, statErr := os.Stat(l.LogFilePath); os.IsNotExist(statErr) {
 			t.Error("文件应该被重新创建")
 		}
 
@@ -408,9 +408,9 @@ func TestErrorPaths(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1,
-			MaxFiles: 1,
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1,
+			MaxFiles:    1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -443,9 +443,9 @@ func TestConcurrentScenarios(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1, // 1MB
-			MaxFiles: 5,
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1, // 1MB
+			MaxFiles:    5,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -514,8 +514,8 @@ func TestConcurrentScenarios(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  1,
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1,
 		}
 
 		var wg sync.WaitGroup
@@ -542,8 +542,8 @@ func TestConcurrentScenarios(t *testing.T) {
 func TestEdgeCases(t *testing.T) {
 	t.Run("空文件名", func(t *testing.T) {
 		l := &LogRotateX{
-			Filename: "", // 空文件名，应该使用默认值
-			MaxSize:  1,
+			LogFilePath: "", // 空文件名，应该使用默认值
+			MaxSize:     1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -581,10 +581,10 @@ func TestEdgeCases(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  -1, // 负数，应该使用默认值
-			MaxFiles: -1, // 负数
-			MaxAge:   -1, // 负数
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     -1, // 负数，应该使用默认值
+			MaxFiles:    -1, // 负数
+			MaxAge:      -1, // 负数
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -607,10 +607,10 @@ func TestEdgeCases(t *testing.T) {
 		}()
 
 		l := &LogRotateX{
-			Filename: boundaryLogFile(dir),
-			MaxSize:  999999, // 极大值
-			MaxFiles: 999999, // 极大值
-			MaxAge:   999999, // 极大值
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     999999, // 极大值
+			MaxFiles:    999999, // 极大值
+			MaxAge:      999999, // 极大值
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -636,8 +636,8 @@ func TestEdgeCases(t *testing.T) {
 		specialName := "test_log_file.2025.log"
 
 		l := &LogRotateX{
-			Filename: filepath.Join(dir, specialName),
-			MaxSize:  1,
+			LogFilePath: filepath.Join(dir, specialName),
+			MaxSize:     1,
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -696,11 +696,11 @@ func TestComprehensiveLogRotation(t *testing.T) {
 	t.Log("=== 第一阶段：测试基本写入功能 ===")
 
 	logger := &LogRotateX{
-		Filename: filepath.Join(dir, "app.log"),
-		MaxSize:  2,    // 2KB
-		MaxFiles: 3,    // 最多保留3个备份
-		MaxAge:   7,    // 最多保留7天
-		Compress: true, // 启用压缩
+		LogFilePath: filepath.Join(dir, "app.log"),
+		MaxSize:     2,    // 2KB
+		MaxFiles:    3,    // 最多保留3个备份
+		MaxAge:      7,    // 最多保留7天
+		Compress:    true, // 启用压缩
 	}
 	defer func() { _ = logger.Close() }()
 

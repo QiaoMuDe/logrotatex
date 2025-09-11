@@ -41,9 +41,9 @@ func TestMaxBackups(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小和最大备份数
 	l := &LogRotateX{
-		Filename: filename,
-		MaxSize:  10,
-		MaxFiles: 1,
+		LogFilePath: filename,
+		MaxSize:     10,
+		MaxFiles:    1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -249,9 +249,9 @@ func TestCleanupExistingBackups(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小和最大备份数
 	l := &LogRotateX{
-		Filename: filename,
-		MaxSize:  10,
-		MaxFiles: 1,
+		LogFilePath: filename,
+		MaxSize:     10,
+		MaxFiles:    1,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -303,9 +303,9 @@ func TestMaxAge(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 Logger 实例
 	l := &LogRotateX{
-		Filename: filename,
-		MaxSize:  10,
-		MaxAge:   1,
+		LogFilePath: filename,
+		MaxSize:     10,
+		MaxAge:      1,
 	}
 	// 测试结束后关闭 Logger
 	defer func() { _ = l.Close() }()
@@ -438,7 +438,7 @@ func TestOldLogFiles(t *testing.T) {
 	isNil(err, t)
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径
-	l := &LogRotateX{Filename: filename}
+	l := &LogRotateX{LogFilePath: filename}
 	// 获取旧日志文件列表
 	files, err := l.oldLogFiles()
 	// 验证获取操作是否成功
@@ -479,9 +479,9 @@ func TestLocalTime(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小，并启用 LocalTime 选项
 	l := &LogRotateX{
-		Filename:  logFile(dir),
-		MaxSize:   10,
-		LocalTime: true,
+		LogFilePath: logFile(dir),
+		MaxSize:     10,
+		LocalTime:   true,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -580,8 +580,8 @@ func TestAutoRotate(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，指定日志文件路径和最大文件大小
 	l := &LogRotateX{
-		Filename: filename,
-		MaxSize:  10,
+		LogFilePath: filename,
+		MaxSize:     10,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -651,8 +651,8 @@ func TestFirstWriteRotate(t *testing.T) {
 	filename := logFile(dir)
 	// 创建一个 LogRotateX 实例，指定日志文件路径和最大文件大小
 	l := &LogRotateX{
-		Filename: filename,
-		MaxSize:  10,
+		LogFilePath: filename,
+		MaxSize:     10,
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()

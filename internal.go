@@ -72,14 +72,14 @@ func (b byFormatTime) Len() int {
 }
 
 // filename 获取当前日志文件的完整路径。
-// 如果未指定 Filename，则使用默认文件名：程序名_logrotatex.log
+// 如果未指定 LogFilePath，则使用默认文件名：程序名_logrotatex.log
 //
 // 返回值:
 //   - string: 日志文件的完整路径
 func (l *LogRotateX) filename() string {
 	// 如果已经指定了日志文件名, 则直接返回
-	if l.Filename != "" {
-		return l.Filename
+	if l.LogFilePath != "" {
+		return l.LogFilePath
 	}
 	// 生成默认的日志文件名, 格式为: 程序名_logrotatex.log
 	name := filepath.Base(os.Args[0]) + defaultLogSuffix

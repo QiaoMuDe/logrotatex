@@ -30,11 +30,7 @@ Package logrotatex 提供了一个日志轮转功能的实现，用于管理日�
 - [方法](#方法)
   - [Write](#write)
   - [Close](#close)
-  - [Rotate](#rotate)
   - [Sync](#sync)
-  - [CurrentFile](#currentfile)
-  - [GetCurrentSize](#getcurrentsize)
-  - [GetMaxSize](#getmaxsize)
 
 ---
 
@@ -44,9 +40,9 @@ Package logrotatex 提供了一个日志轮转功能的实现，用于管理日�
 
 ```go
 type LogRotateX struct {
-    // Filename 是写入日志的文件。备份日志文件将保留在同一目录中。
+    // LogFilePath 是写入日志的文件路径。备份日志文件将保留在同一目录中。
 	  // 如果该值为空，则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
-	  Filename string `json:"filename" yaml:"filename"`
+	  LogFilePath string `json:"logfilepath" yaml:"logfilepath"`
   
 	  // MaxSize 是单个日志文件的最大大小（以 MB 为单位）。默认值为 10 MB。
 	  // 超过此大小的日志文件将被轮转。
@@ -88,7 +84,7 @@ type LogRotateX struct {
 - `timestamp` 是日志轮转时的时间，格式为 `20060102150405`
 - `ext` 是原始扩展名
 
-**示例**: 如果你的 `LogRotateX.Filename` 是 `/var/log/foo/server.log`，在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server_20161104183000.log`。
+**示例**: 如果你的 `LogRotateX.LogFilePath` 是 `/var/log/foo/server.log`，在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server_20161104183000.log`。
 
 #### 清理旧日志文件
 

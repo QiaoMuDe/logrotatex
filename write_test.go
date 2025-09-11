@@ -52,8 +52,8 @@ func TestWriteMethod(t *testing.T) {
 
 	// 创建一个 LogRotateX 实例，指定日志文件路径
 	l := &LogRotateX{
-		Filename: filepath.Join(dir, "test_write.log"),
-		MaxSize:  1, // 1MB
+		LogFilePath: filepath.Join(dir, "test_write.log"),
+		MaxSize:     1, // 1MB
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
@@ -152,9 +152,9 @@ func TestWriteMethod(t *testing.T) {
 
 	// 创建启用压缩的新logger
 	compressLogger := &LogRotateX{
-		Filename: filepath.Join(dir, "compress_test.log"),
-		MaxSize:  1,    // 1MB
-		Compress: true, // 启用压缩
+		LogFilePath: filepath.Join(dir, "compress_test.log"),
+		MaxSize:     1,    // 1MB
+		Compress:    true, // 启用压缩
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = compressLogger.Close() }()
@@ -251,10 +251,10 @@ func TestWriteMethod(t *testing.T) {
 
 	// 创建限制备份数量的logger
 	cleanupLogger := &LogRotateX{
-		Filename: filepath.Join(dir, "cleanup_test.log"),
-		MaxSize:  1,     // 1MB
-		MaxFiles: 2,     // 最多保留2个备份文件
-		Compress: false, // 不启用压缩
+		LogFilePath: filepath.Join(dir, "cleanup_test.log"),
+		MaxSize:     1,     // 1MB
+		MaxFiles:    2,     // 最多保留2个备份文件
+		Compress:    false, // 不启用压缩
 	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = cleanupLogger.Close() }()

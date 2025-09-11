@@ -121,11 +121,8 @@ func main() {
     logger := logrotatex.NewLogRotateX("logs/app.log")
     defer logger.Close()
     
-    // 设置为标准日志输出
-    log.SetOutput(logger)
-    
     // 开始使用
-    log.Println("Hello LogRotateX! 🎉")
+    logger.Write([]byte("Hello LogRotateX! 🎉\n"))
 }
 ```
 
@@ -158,10 +155,13 @@ func main() {
     // 设置为标准日志输出
     log.SetOutput(logger)
     
-    // 写入日志
-    log.Println("应用启动成功")
-    log.Printf("当前配置: MaxSize=%dMB, MaxSize=%d, MaxAge=%d天", 
-        logger.MaxSize, logger.MaxSize, logger.MaxAge)
+    // 直接使用Write接口写入日志
+    logger.Write([]byte("应用启动成功
+"))
+    
+    // 或者通过标准log包写入（内部调用Write方法）
+    log.SetOutput(logger)
+    log.Println("这条日志会通过Write方法写入")
 }
 ```
 
@@ -178,7 +178,7 @@ import "gitee.com/MM-Q/logrotatex"
 func main() {
     // 完全自定义配置
     logger := &logrotatex.LogRotateX{
-        Filename:   "logs/custom.log",
+        LogFilePath:   "logs/custom.log",
         MaxSize:    50,     // 50MB
         MaxFiles: 5,      // 保留5个历史文件
         MaxAge:     14,     // 保留14天
@@ -330,13 +330,6 @@ func main() {
         }
     }
     
-    // 手动轮转
-    if err := logger.Rotate(); err != nil {
-        log.Printf("手动轮转失败: %v", err)
-    } else {
-        log.Println("手动轮转成功")
-    }
-    
     // 强制同步到磁盘
     if err := logger.Sync(); err != nil {
         log.Printf("同步失败: %v", err)
@@ -352,7 +345,7 @@ func main() {
 
 ```go
 type LogRotateX struct {
-    Filename   string      // 日志文件路径
+    LogFilePath   string      // 日志文件路径
     MaxSize    int         // 最大文件大小（MB）
     MaxFiles int        // 最大历史文件数量
     MaxAge     int         // 最大保留天数
@@ -367,12 +360,8 @@ type LogRotateX struct {
 |------|------|--------|
 | `NewLogRotateX(filename string)` | 创建新的日志轮转器 | `*LogRotateX` |
 | `Write(p []byte)` | 写入日志数据 | `(int, error)` |
-| `Rotate()` | 手动触发日志轮转 | `error` |
 | `Close()` | 关闭日志文件 | `error` |
 | `Sync()` | 同步数据到磁盘 | `error` |
-| `GetCurrentSize()` | 获取当前文件大小 | `int64` |
-| `GetMaxSize()` | 获取最大文件大小 | `int64` |
-| `CurrentFile()` | 获取当前文件路径 | `string` |
 
 ### 📋 接口实现
 
@@ -411,7 +400,7 @@ LogRotateX 作为 `io.Writer` 实现，支持任何文本格式的日志：
 
 | 参数名 | 类型 | 默认值 | 说明 | 示例 |
 |--------|------|--------|------|------|
-| `Filename` | `string` | `""` | 日志文件路径 | `"logs/app.log"` |
+| `LogFilePath` | `string` | `""` | 日志文件路径 | `"logs/app.log"` |
 | `MaxSize` | `int` | `10` | 单个文件最大大小（MB） | `100` |
 | `MaxFiles` | `int` | `0` | 最大历史文件数量 | `5` |
 | `MaxAge` | `int` | `0` | 最大保留天数 | `30` |

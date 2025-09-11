@@ -20,10 +20,10 @@ func Example() {
 	// 日志文件最多保留 28 天
 	// 启用日志文件压缩功能
 	log.SetOutput(&LogRotateX{
-		Filename: "/var/log/myapp/foo.log",
-		MaxSize:  500, // megabytes
-		MaxFiles: 3,
-		MaxAge:   28,   // days
-		Compress: true, // disabled by default
+		LogFilePath: "/var/log/myapp/foo.log",
+		MaxSize:     500, // megabytes
+		MaxFiles:    3,
+		MaxAge:      28,   // days
+		Compress:    true, // disabled by default
 	})
 }
