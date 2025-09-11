@@ -252,6 +252,7 @@ func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
 	if hasAgeRule {
 		cutoffTime := currentTime().Add(-time.Duration(l.MaxAge) * 24 * time.Hour)
 		for _, f := range files {
+			// 如果文件时间早于最大保留天数，则保留
 			if f.timestamp.After(cutoffTime) {
 				keep = append(keep, f)
 			}
