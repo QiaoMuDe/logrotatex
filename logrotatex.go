@@ -89,8 +89,8 @@ type LogRotateX struct {
 	closeOnce sync.Once   // closeOnce 是一个 sync.Once，用于确保只执行一次关闭操作
 }
 
-// New 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
-var New = NewLogRotateX
+// NewLRX 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
+var NewLRX = NewLogRotateX
 
 // NewLogRotateX 创建一个新的 LogRotateX 实例，使用默认配置。
 //

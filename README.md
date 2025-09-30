@@ -43,6 +43,17 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 
 </td>
 </tr>
+<tr>
+<td colspan="2">
+
+### 🚀 缓冲写入器 (BufferedWriter)
+- 📦 **批量写入** - 三重触发条件智能刷新
+- ⚡ **性能提升** - 减少系统调用开销
+- 🔧 **通用设计** - 支持任意 io.Writer 和 io.Closer
+- ⏱️ **实时控制** - 大小、数量、时间三重保障
+
+</td>
+</tr>
 </table>
 
 ### 🌟 主要优势
@@ -51,6 +62,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 |------|------|------|
 | 🔌 **无缝集成** | 实现 `io.Writer` 接口 | 兼容所有主流日志库 |
 | ⚡ **高性能** | 优化的文件操作算法 | 支持高频日志写入场景 |
+| 🚀 **缓冲写入** | 带缓冲批量写入器 | 显著提升写入性能，减少系统调用 |
 | 🛡️ **企业级安全** | 多层安全防护机制 | 防止安全漏洞和攻击 |
 | 🔧 **灵活配置** | 丰富的配置选项 | 适应各种使用场景 |
 | 📈 **生产就绪** | 经过充分测试验证 | 可直接用于生产环境 |
@@ -190,6 +202,116 @@ func main() {
     
     // 直接写入
     logger.Write([]byte("自定义配置的日志消息\n"))
+}
+```
+
+</details>
+
+### 🚀 高性能缓冲写入
+
+<details>
+<summary><b>⚡ 缓冲写入器基础用法（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 创建日志轮转器
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    
+    // 创建缓冲写入器，显著提升性能
+    buffered := logrotatex.NewBufFromL(logger, nil) // 使用默认配置
+    defer buffered.Close()
+    
+    // 高性能批量写入
+    for i := 0; i < 1000; i++ {
+        buffered.Write([]byte("高性能日志消息
+"))
+    }
+    // 自动批量刷新，减少系统调用
+}
+```
+
+</details>
+
+<details>
+<summary><b>🔧 自定义缓冲配置（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 创建日志轮转器
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    
+    // 自定义缓冲配置
+    config := &logrotatex.BufCfg{
+        MaxBufferSize: 128 * 1024, // 128KB 缓冲区
+        MaxLogCount:   1000,       // 1000条日志
+        FlushInterval: 500,        // 500ms 刷新间隔
+    }
+    
+    // 创建缓冲写入器
+    buffered := logrotatex.NewBufFromL(logger, config)
+    defer buffered.Close()
+    
+    // 高频写入场景
+    for i := 0; i < 10000; i++ {
+        buffered.Write([]byte("大量日志数据写入测试
+"))
+    }
+    
+    // 手动刷新缓冲区
+    buffered.Flush()
+}
+```
+
+</details>
+
+<details>
+<summary><b>📊 性能监控示例（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    buffered := logrotatex.NewBufFromL(logger, nil)
+    defer buffered.Close()
+    
+    // 性能测试
+    start := time.Now()
+    
+    for i := 0; i < 50000; i++ {
+        buffered.Write([]byte("性能测试日志消息
+"))
+        
+        // 每10000条检查状态
+        if (i+1)%10000 == 0 {
+            fmt.Printf("已写入 %d 条，缓冲区大小: %d 字节，日志计数: %d
+", 
+                i+1, buffered.BufSize(), buffered.LogCount())
+        }
+    }
+    
+    elapsed := time.Since(start)
+    fmt.Printf("写入50000条日志耗时: %v
+", elapsed)
 }
 ```
 
@@ -752,6 +874,7 @@ copies or substantial portions of the Software.
 - 📊 **性能优化** - 优化文件扫描算法和内存使用
 - 🗜️ **ZIP 压缩** - 改进压缩格式，提供更好兼容性
 - 🔒 **权限控制** - 增加文件权限配置选项
+- 🚀 **缓冲写入器** - 新增高性能批量写入功能，三重触发条件智能刷新
 - 🌐 **本地化支持** - 提供中文文档和本地化体验
 
 ### 📚 原始项目信息
