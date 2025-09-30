@@ -27,30 +27,30 @@ type BufferedWriter struct {
 
 	// 三重刷新条件
 	maxBufferSize int           // 最大缓冲区大小（字节）
-	maxLogCount   int           // 最大日志条数
+	maxWriteCount int           // 最大写入次数
 	flushInterval time.Duration // 刷新间隔
 
 	// 状态跟踪
-	currentCount int       // 当前日志条数
-	lastFlush    time.Time // 上次刷新时间
-	closed       bool      // 是否已关闭
+	writeCount int       // 当前写入次数
+	lastFlush  time.Time // 上次刷新时间
+	closed     bool      // 是否已关闭
 }
 
 // BufCfg 缓冲写入器配置
 type BufCfg struct {
 	MaxBufferSize int           // 最大缓冲区大小，默认64KB
-	MaxLogCount   int           // 最大日志条数，默认500条
+	MaxWriteCount int           // 最大写入次数，默认500次
 	FlushInterval time.Duration // 刷新间隔，默认1秒
 }
 
 // DefBufCfg 默认缓冲写入器配置
 //
 // 注意:
-//   - 默认缓冲区大小为64KB，最大日志条数为500条，刷新间隔为1秒
+//   - 默认缓冲区大小为64KB，最大写入次数为500次，刷新间隔为1秒
 func DefBufCfg() *BufCfg {
 	return &BufCfg{
 		MaxBufferSize: 64 * 1024,       // 64KB缓冲区
-		MaxLogCount:   500,             // 500条日志
+		MaxWriteCount: 500,             // 500次写入
 		FlushInterval: 1 * time.Second, // 1秒刷新间隔
 	}
 }
@@ -61,13 +61,24 @@ var NewBW = NewBufferedWriter
 // NewBufferedWriter 创建新的带缓冲批量写入器
 func NewBufferedWriter(writer io.Writer, closer io.Closer, config *BufCfg) *BufferedWriter {
 	if writer == nil {
-		panic("buffered writer: writer cannot be nil")
+		panic("logrotatex: writer cannot be nil")
 	}
 	if closer == nil {
-		panic("buffered writer: closer cannot be nil")
+		panic("logrotatex: closer cannot be nil")
 	}
 	if config == nil {
 		config = DefBufCfg()
+	} else {
+		// 严格校验：非法值直接 panic，快速失败
+		if config.MaxBufferSize <= 0 {
+			panic("logrotatex: MaxBufferSize must be > 0")
+		}
+		if config.MaxWriteCount <= 0 {
+			panic("logrotatex: MaxWriteCount must be > 0")
+		}
+		if config.FlushInterval <= 0 {
+			panic("logrotatex: FlushInterval must be > 0")
+		}
 	}
 
 	return &BufferedWriter{
@@ -75,7 +86,7 @@ func NewBufferedWriter(writer io.Writer, closer io.Closer, config *BufCfg) *Buff
 		closer:        closer,                                                 // 底层关闭器（必需）
 		buffer:        bytes.NewBuffer(make([]byte, 0, config.MaxBufferSize)), // 初始化缓冲区
 		maxBufferSize: config.MaxBufferSize,                                   // 最大缓冲区大小（字节）
-		maxLogCount:   config.MaxLogCount,                                     // 最大日志条数
+		maxWriteCount: config.MaxWriteCount,                                   // 最大写入次数
 		flushInterval: config.FlushInterval,                                   // 刷新间隔
 		lastFlush:     time.Now(),                                             // 初始化为当前时间
 	}
@@ -119,8 +130,8 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 
-	// 2. 增加日志计数
-	bw.currentCount++
+	// 2. 增加写入计数
+	bw.writeCount++
 
 	// 3. 检查是否需要刷新（三重条件触发）
 	if bw.shouldFlush() {
@@ -131,10 +142,10 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 }
 
 // shouldFlush 检查是否应该刷新缓冲区
-// 三重条件：缓冲区大小 OR 日志条数 OR 刷新间隔
+// 三重条件：缓冲区大小 OR 写入次数 OR 刷新间隔
 func (bw *BufferedWriter) shouldFlush() bool {
 	// 先检查大小和数量条件，避免不必要的时间计算
-	if bw.buffer.Len() >= bw.maxBufferSize || bw.currentCount >= bw.maxLogCount {
+	if bw.buffer.Len() >= bw.maxBufferSize || bw.writeCount >= bw.maxWriteCount {
 		return true
 	}
 	// 只有在前两个条件都不满足时才检查时间
@@ -147,15 +158,15 @@ func (bw *BufferedWriter) flushLocked() error {
 		return nil
 	}
 
-	// 一次性写入所有数据到底层写入器
-	_, err := bw.writer.Write(bw.buffer.Bytes())
-	if err != nil {
+	// 使用 bytes.Buffer.WriteTo 来处理部分写入与循环写入
+	if _, err := bw.buffer.WriteTo(bw.writer); err != nil {
+		// 出错时，WriteTo 已消耗掉已写出的前缀，剩余数据仍保留在缓冲区
 		return err
 	}
 
-	// 重置缓冲区和计数器
+	// 写入成功后，缓冲区已被消费为空，这里 Reset 以确保状态干净
 	bw.buffer.Reset()
-	bw.currentCount = 0
+	bw.writeCount = 0         // 重置写入次数
 	bw.lastFlush = time.Now() // 更新刷新时间
 	return nil
 }
@@ -173,10 +184,9 @@ func (bw *BufferedWriter) Close() error {
 	defer bw.mutex.Unlock()
 
 	if bw.closed {
-		return nil
+		return nil // 已关闭，无需重复操作
 	}
-
-	bw.closed = true
+	bw.closed = true // 标记为已关闭
 
 	// 关闭前最后一次刷新，确保数据不丢失
 	err := bw.flushLocked()
@@ -198,11 +208,11 @@ func (bw *BufferedWriter) BufferSize() int {
 	return bw.buffer.Len()
 }
 
-// LogCount 返回当前缓冲区中的日志条数
-func (bw *BufferedWriter) LogCount() int {
+// WriteCount 返回当前缓冲区中的写入次数
+func (bw *BufferedWriter) WriteCount() int {
 	bw.mutex.RLock()
 	defer bw.mutex.RUnlock()
-	return bw.currentCount
+	return bw.writeCount
 }
 
 // IsClosed 返回缓冲写入器是否已关闭

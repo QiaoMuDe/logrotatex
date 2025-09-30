@@ -85,8 +85,8 @@ func TestDefBufCfg(t *testing.T) {
 	if cfg.MaxBufferSize != 64*1024 {
 		t.Errorf("Expected MaxBufferSize 64KB, got %d", cfg.MaxBufferSize)
 	}
-	if cfg.MaxLogCount != 500 {
-		t.Errorf("Expected MaxLogCount 500, got %d", cfg.MaxLogCount)
+	if cfg.MaxWriteCount != 500 {
+		t.Errorf("Expected MaxWriteCount 500, got %d", cfg.MaxWriteCount)
 	}
 	if cfg.FlushInterval != 1*time.Second {
 		t.Errorf("Expected FlushInterval 1s, got %v", cfg.FlushInterval)
@@ -118,7 +118,7 @@ func TestNewBufferedWriter(t *testing.T) {
 		closer := &mockCloser{}
 		config := &BufCfg{
 			MaxBufferSize: 1024,
-			MaxLogCount:   10,
+			MaxWriteCount: 10,
 			FlushInterval: 100 * time.Millisecond,
 		}
 
@@ -128,8 +128,8 @@ func TestNewBufferedWriter(t *testing.T) {
 		if bw.maxBufferSize != 1024 {
 			t.Errorf("Expected buffer size 1024, got %d", bw.maxBufferSize)
 		}
-		if bw.maxLogCount != 10 {
-			t.Errorf("Expected log count 10, got %d", bw.maxLogCount)
+		if bw.maxWriteCount != 10 {
+			t.Errorf("Expected log count 10, got %d", bw.maxWriteCount)
 		}
 		if bw.flushInterval != 100*time.Millisecond {
 			t.Errorf("Expected flush interval 100ms, got %v", bw.flushInterval)
@@ -179,7 +179,7 @@ func TestWrite(t *testing.T) {
 		closer := &mockCloser{}
 		config := &BufCfg{
 			MaxBufferSize: 1024,
-			MaxLogCount:   5,
+			MaxWriteCount: 5,
 			FlushInterval: 1 * time.Second,
 		}
 
@@ -195,8 +195,8 @@ func TestWrite(t *testing.T) {
 		if n != len(data) {
 			t.Errorf("Expected %d bytes written, got %d", len(data), n)
 		}
-		if bw.LogCount() != 1 {
-			t.Errorf("Expected log count 1, got %d", bw.LogCount())
+		if bw.WriteCount() != 1 {
+			t.Errorf("Expected log count 1, got %d", bw.WriteCount())
 		}
 		if bw.BufferSize() != len(data) {
 			t.Errorf("Expected buffer size %d, got %d", len(data), bw.BufferSize())
@@ -224,7 +224,7 @@ func TestFlushConditions(t *testing.T) {
 		closer := &mockCloser{}
 		config := &BufCfg{
 			MaxBufferSize: 10, // 很小的缓冲区
-			MaxLogCount:   100,
+			MaxWriteCount: 100,
 			FlushInterval: 1 * time.Hour, // 很长的间隔
 		}
 
@@ -249,7 +249,7 @@ func TestFlushConditions(t *testing.T) {
 		closer := &mockCloser{}
 		config := &BufCfg{
 			MaxBufferSize: 1024,
-			MaxLogCount:   3, // 很小的计数
+			MaxWriteCount: 3, // 很小的计数
 			FlushInterval: 1 * time.Hour,
 		}
 
@@ -265,8 +265,8 @@ func TestFlushConditions(t *testing.T) {
 		if writer.WriteCalls() != 1 {
 			t.Errorf("Expected 1 write call, got %d", writer.WriteCalls())
 		}
-		if bw.LogCount() != 0 {
-			t.Errorf("Log count should be 0 after flush, got %d", bw.LogCount())
+		if bw.WriteCount() != 0 {
+			t.Errorf("Log count should be 0 after flush, got %d", bw.WriteCount())
 		}
 	})
 
@@ -275,7 +275,7 @@ func TestFlushConditions(t *testing.T) {
 		closer := &mockCloser{}
 		config := &BufCfg{
 			MaxBufferSize: 1024,
-			MaxLogCount:   100,
+			MaxWriteCount: 100,
 			FlushInterval: 50 * time.Millisecond, // 很短的间隔
 		}
 
@@ -320,7 +320,7 @@ func TestFlush(t *testing.T) {
 	if bw.BufferSize() != 0 {
 		t.Error("Buffer should be empty after flush")
 	}
-	if bw.LogCount() != 0 {
+	if bw.WriteCount() != 0 {
 		t.Error("Log count should be 0 after flush")
 	}
 }
@@ -400,7 +400,7 @@ func TestStatusMethods(t *testing.T) {
 	if bw.BufferSize() != 0 {
 		t.Error("Initial buffer size should be 0")
 	}
-	if bw.LogCount() != 0 {
+	if bw.WriteCount() != 0 {
 		t.Error("Initial log count should be 0")
 	}
 	if bw.IsClosed() {
@@ -414,8 +414,8 @@ func TestStatusMethods(t *testing.T) {
 	if bw.BufferSize() != len(data) {
 		t.Errorf("Expected buffer size %d, got %d", len(data), bw.BufferSize())
 	}
-	if bw.LogCount() != 1 {
-		t.Errorf("Expected log count 1, got %d", bw.LogCount())
+	if bw.WriteCount() != 1 {
+		t.Errorf("Expected log count 1, got %d", bw.WriteCount())
 	}
 
 	// 测试时间方法
@@ -431,7 +431,7 @@ func TestConcurrency(t *testing.T) {
 	closer := &mockCloser{}
 	config := &BufCfg{
 		MaxBufferSize: 1024,
-		MaxLogCount:   100,
+		MaxWriteCount: 100,
 		FlushInterval: 100 * time.Millisecond,
 	}
 
@@ -461,7 +461,7 @@ func TestConcurrency(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
 				bw.BufferSize()
-				bw.LogCount()
+				bw.WriteCount()
 				bw.IsClosed()
 				bw.TimeSinceLastFlush()
 				time.Sleep(1 * time.Millisecond)
@@ -489,7 +489,7 @@ func TestErrorHandling(t *testing.T) {
 		closer := &mockCloser{}
 		config := &BufCfg{
 			MaxBufferSize: 10,
-			MaxLogCount:   1,
+			MaxWriteCount: 1,
 			FlushInterval: 1 * time.Hour,
 		}
 
@@ -536,7 +536,7 @@ func TestRealLogRotateX(t *testing.T) {
 
 	config := &BufCfg{
 		MaxBufferSize: 1024,
-		MaxLogCount:   10,
+		MaxWriteCount: 10,
 		FlushInterval: 100 * time.Millisecond,
 	}
 

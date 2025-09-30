@@ -50,7 +50,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 - 📦 **批量写入** - 三重触发条件智能刷新
 - ⚡ **性能提升** - 减少系统调用开销
 - 🔧 **通用设计** - 支持任意 io.Writer 和 io.Closer
-- ⏱️ **实时控制** - 大小、数量、时间三重保障
+- ⏱️ **实时控制** - 大小、写入次数、时间三重保障
 
 </td>
 </tr>
@@ -255,9 +255,9 @@ func main() {
     
     // 自定义缓冲配置
     config := &logrotatex.BufCfg{
-        MaxBufferSize: 128 * 1024, // 128KB 缓冲区
-        MaxLogCount:   1000,       // 1000条日志
-        FlushInterval: 500,        // 500ms 刷新间隔
+        MaxBufferSize: 128 * 1024,                      // 128KB 缓冲区
+        MaxWriteCount:   1000,                          // 1000条写入次数
+        FlushInterval: 500 * time.Millisecond,          // 500ms 刷新间隔
     }
     
     // 创建缓冲写入器
@@ -305,7 +305,7 @@ func main() {
         if (i+1)%10000 == 0 {
             fmt.Printf("已写入 %d 条，缓冲区大小: %d 字节，日志计数: %d
 ", 
-                i+1, buffered.BufSize(), buffered.LogCount())
+                i+1, buffered.BufSize(), buffered.WriteCount())
         }
     }
     
@@ -570,16 +570,6 @@ logger.Compress = true    // 启用压缩 - 减少网络传输
 ```
 
 </details>
-
-## 📦 核心模块说明
-
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| **核心引擎** | `logrotatex.go` | 主要接口和结构体定义 |
-| **轮转逻辑** | `rotate.go` | 文件轮转和清理逻辑 |
-| **压缩功能** | `compress.go` | ZIP压缩实现 |
-| **安全模块** | `security.go` | 路径安全验证 |
-| **工具函数** | `utils.go` | 通用工具函数 |
 
 ## 🧪 测试说明
 
