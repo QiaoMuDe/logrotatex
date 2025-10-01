@@ -78,6 +78,20 @@ func (m *mockCloser) IsClosed() bool {
 	return m.closed
 }
 
+// writerCloser 组合 mockWriter 与 mockCloser，适配为 io.WriteCloser
+type writerCloser struct {
+	w *mockWriter
+	c *mockCloser
+}
+
+func (wc *writerCloser) Write(p []byte) (int, error) {
+	return wc.w.Write(p)
+}
+
+func (wc *writerCloser) Close() error {
+	return wc.c.Close()
+}
+
 // TestDefBufCfg 测试默认配置
 func TestDefBufCfg(t *testing.T) {
 	cfg := DefBufCfg()
@@ -98,15 +112,13 @@ func TestNewBufferedWriter(t *testing.T) {
 	t.Run("正常创建", func(t *testing.T) {
 		writer := &mockWriter{}
 		closer := &mockCloser{}
+		wc := &writerCloser{w: writer, c: closer}
 
-		bw := NewBufferedWriter(writer, closer, nil)
+		bw := NewBufferedWriter(wc, nil)
 		defer func() { _ = bw.Close() }()
 
-		if bw.writer != writer {
-			t.Error("Writer not set correctly")
-		}
-		if bw.closer != closer {
-			t.Error("Closer not set correctly")
+		if bw.wc != wc {
+			t.Error("WriteCloser not set correctly")
 		}
 		if bw.maxBufferSize != 64*1024 {
 			t.Error("Default buffer size not set")
@@ -122,7 +134,7 @@ func TestNewBufferedWriter(t *testing.T) {
 			FlushInterval: 100 * time.Millisecond,
 		}
 
-		bw := NewBufferedWriter(writer, closer, config)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 		defer func() { _ = bw.Close() }()
 
 		if bw.maxBufferSize != 1024 {
@@ -136,40 +148,14 @@ func TestNewBufferedWriter(t *testing.T) {
 		}
 	})
 
-	t.Run("Writer为nil应该panic", func(t *testing.T) {
+	t.Run("WriteCloser为nil应该panic", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic when writer is nil")
+				t.Error("Expected panic when WriteCloser is nil")
 			}
 		}()
-		NewBufferedWriter(nil, &mockCloser{}, nil)
+		NewBufferedWriter(nil, nil)
 	})
-
-	t.Run("Closer为nil应该panic", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when closer is nil")
-			}
-		}()
-		NewBufferedWriter(&mockWriter{}, nil, nil)
-	})
-}
-
-// TestNewBufFromL 测试从LogRotateX创建
-func TestNewBufFromL(t *testing.T) {
-	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "test.log")
-
-	logger := NewLogRotateX(logFile)
-	bw := NewBufFromL(logger, nil)
-	defer func() { _ = bw.Close() }()
-
-	if bw.writer != logger {
-		t.Error("Writer should be the logger")
-	}
-	if bw.closer != logger {
-		t.Error("Closer should be the logger")
-	}
 }
 
 // TestWrite 测试写入功能
@@ -183,7 +169,7 @@ func TestWrite(t *testing.T) {
 			FlushInterval: 1 * time.Second,
 		}
 
-		bw := NewBufferedWriter(writer, closer, config)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 		defer func() { _ = bw.Close() }()
 
 		data := []byte("test log message\n")
@@ -207,7 +193,7 @@ func TestWrite(t *testing.T) {
 		writer := &mockWriter{}
 		closer := &mockCloser{}
 
-		bw := NewBufferedWriter(writer, closer, nil)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 		_ = bw.Close()
 
 		_, err := bw.Write([]byte("test"))
@@ -228,7 +214,7 @@ func TestFlushConditions(t *testing.T) {
 			FlushInterval: 1 * time.Hour, // 很长的间隔
 		}
 
-		bw := NewBufferedWriter(writer, closer, config)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 		defer func() { _ = bw.Close() }()
 
 		// 写入超过缓冲区大小的数据
@@ -253,7 +239,7 @@ func TestFlushConditions(t *testing.T) {
 			FlushInterval: 1 * time.Hour,
 		}
 
-		bw := NewBufferedWriter(writer, closer, config)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 		defer func() { _ = bw.Close() }()
 
 		// 写入3条日志
@@ -279,7 +265,7 @@ func TestFlushConditions(t *testing.T) {
 			FlushInterval: 50 * time.Millisecond, // 很短的间隔
 		}
 
-		bw := NewBufferedWriter(writer, closer, config)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 		defer func() { _ = bw.Close() }()
 
 		// 写入一条日志
@@ -302,7 +288,7 @@ func TestFlush(t *testing.T) {
 	writer := &mockWriter{}
 	closer := &mockCloser{}
 
-	bw := NewBufferedWriter(writer, closer, nil)
+	bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 	defer func() { _ = bw.Close() }()
 
 	// 写入一些数据
@@ -331,7 +317,7 @@ func TestClose(t *testing.T) {
 		writer := &mockWriter{}
 		closer := &mockCloser{}
 
-		bw := NewBufferedWriter(writer, closer, nil)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 
 		// 写入一些数据
 		_, _ = bw.Write([]byte("test data"))
@@ -357,7 +343,7 @@ func TestClose(t *testing.T) {
 		writer := &mockWriter{}
 		closer := &mockCloser{}
 
-		bw := NewBufferedWriter(writer, closer, nil)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 
 		// 第一次关闭
 		err1 := bw.Close()
@@ -376,7 +362,7 @@ func TestClose(t *testing.T) {
 		writer := &mockWriter{}
 		closer := &mockCloser{closeErr: errors.New("close error")}
 
-		bw := NewBufferedWriter(writer, closer, nil)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 
 		err := bw.Close()
 		if err == nil {
@@ -393,7 +379,7 @@ func TestStatusMethods(t *testing.T) {
 	writer := &mockWriter{}
 	closer := &mockCloser{}
 
-	bw := NewBufferedWriter(writer, closer, nil)
+	bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 	defer func() { _ = bw.Close() }()
 
 	// 初始状态
@@ -435,7 +421,7 @@ func TestConcurrency(t *testing.T) {
 		FlushInterval: 100 * time.Millisecond,
 	}
 
-	bw := NewBufferedWriter(writer, closer, config)
+	bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 	defer func() { _ = bw.Close() }()
 
 	// 并发写入
@@ -493,7 +479,7 @@ func TestErrorHandling(t *testing.T) {
 			FlushInterval: 1 * time.Hour,
 		}
 
-		bw := NewBufferedWriter(writer, closer, config)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
 		defer func() { _ = bw.Close() }()
 
 		// 写入数据触发刷新，应该返回错误
@@ -510,7 +496,7 @@ func TestErrorHandling(t *testing.T) {
 		writer := &mockWriter{}
 		closer := &mockCloser{}
 
-		bw := NewBufferedWriter(writer, closer, nil)
+		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 		defer func() { _ = bw.Close() }()
 
 		// 写入数据
@@ -540,7 +526,7 @@ func TestRealLogRotateX(t *testing.T) {
 		FlushInterval: 100 * time.Millisecond,
 	}
 
-	bw := NewBufFromL(logger, config)
+	bw := NewBufferedWriter(logger, config)
 	defer func() { _ = bw.Close() }()
 
 	// 写入一些测试数据
@@ -582,7 +568,7 @@ func BenchmarkBufferedWriter(b *testing.B) {
 	writer := &mockWriter{}
 	closer := &mockCloser{}
 
-	bw := NewBufferedWriter(writer, closer, nil)
+	bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, nil)
 	defer func() { _ = bw.Close() }()
 
 	data := []byte("benchmark test message\n")

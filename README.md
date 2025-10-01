@@ -10,7 +10,7 @@
 
 **高性能、线程安全的 Go 日志轮转库，提供完整的日志文件管理功能**
 
-[🚀 快速开始](#-快速开始) • [📖 文档](#-api文档概述) • [💡 示例](#-使用示例) • [🤝 贡献](#-贡献指南) • [📄 许可证](#-许可证)
+[🚀 快速开始](#-快速开始) • [📖 文档](APIDOC.md) • [💡 示例](#-使用示例) • [🤝 贡献](#-贡献指南) • [📄 许可证](#-许可证)
 
 ---
 
@@ -49,8 +49,8 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 ### 🚀 缓冲写入器 (BufferedWriter)
 - 📦 **批量写入** - 三重触发条件智能刷新
 - ⚡ **性能提升** - 减少系统调用开销
-- 🔧 **通用设计** - 支持任意 io.Writer 和 io.Closer
-- ⏱️ **实时控制** - 大小、写入次数、时间三重保障
+- 🔧 **通用设计** - 支持任意 io.WriteCloser
+- ⏱️ **实时控制** - 缓冲区大小、写入次数、刷新间隔三重保障
 
 </td>
 </tr>
@@ -225,7 +225,7 @@ func main() {
     logger := logrotatex.NewLogRotateX("logs/app.log")
     
     // 创建缓冲写入器，显著提升性能
-    buffered := logrotatex.NewBufFromL(logger, nil) // 使用默认配置
+    buffered := logrotatex.NewBufferedWriter(logger, DefBufCfg()) // 使用默认配置
     defer buffered.Close()
     
     // 高性能批量写入
@@ -261,7 +261,7 @@ func main() {
     }
     
     // 创建缓冲写入器
-    buffered := logrotatex.NewBufFromL(logger, config)
+    buffered := logrotatex.NewBufferedWriter(logger, config)
     defer buffered.Close()
     
     // 高频写入场景
@@ -291,7 +291,7 @@ import (
 
 func main() {
     logger := logrotatex.NewLogRotateX("logs/app.log")
-    buffered := logrotatex.NewBufFromL(logger, nil)
+    buffered := logrotatex.NewBufferedWriter(logger, nil)
     defer buffered.Close()
     
     // 性能测试
@@ -305,7 +305,7 @@ func main() {
         if (i+1)%10000 == 0 {
             fmt.Printf("已写入 %d 条，缓冲区大小: %d 字节，日志计数: %d
 ", 
-                i+1, buffered.BufSize(), buffered.WriteCount())
+                i+1, buffered.BufferSize(), buffered.WriteCount())
         }
     }
     
@@ -461,74 +461,9 @@ func main() {
 
 </details>
 
-## 📖 API文档概述
+## 📖 文档
 
-### 🏗️ 核心结构体
-
-```go
-type LogRotateX struct {
-    LogFilePath   string      // 日志文件路径
-    MaxSize    int         // 最大文件大小（MB）
-    MaxFiles int        // 最大历史文件数量
-    MaxAge     int         // 最大保留天数
-    LocalTime  bool        // 是否使用本地时间
-    Compress   bool        // 是否压缩备份文件
-}
-```
-
-### 🔧 主要方法
-
-| 方法 | 描述 | 返回值 |
-|------|------|--------|
-| `NewLogRotateX(logfilepath string)` | 创建新的日志轮转器 | `*LogRotateX` |
-| `Write(p []byte)` | 写入日志数据 | `(int, error)` |
-| `Close()` | 关闭日志文件 | `error` |
-| `Sync()` | 同步数据到磁盘 | `error` |
-
-### 📋 接口实现
-
-LogRotateX 实现了以下标准接口：
-
-- `io.Writer` - 支持标准写入操作
-- `io.WriteCloser` - 支持写入和关闭操作
-
-## 🎛️ 支持的功能/格式
-
-### ✅ 支持的功能
-
-| 功能 | 状态 | 描述 |
-|------|------|------|
-| 📁 **文件轮转** | ✅ | 基于大小的自动轮转 |
-| 🗜️ **ZIP压缩** | ✅ | 自动压缩备份文件 |
-| 🧹 **自动清理** | ✅ | 按数量和时间清理 |
-| 🔒 **安全验证** | ✅ | 路径安全检查 |
-| 🚀 **并发安全** | ✅ | 多goroutine安全 |
-| ⏱️ **时间格式** | ✅ | 本地时间/UTC可选 |
-| 🔧 **权限控制** | ✅ | 自定义文件权限 |
-| 📊 **状态查询** | ✅ | 运行时状态获取 |
-
-### 📝 支持的日志格式
-
-LogRotateX 作为 `io.Writer` 实现，支持任何文本格式的日志：
-
-- **纯文本日志** - 标准文本格式
-- **JSON日志** - 结构化JSON格式
-- **结构化日志** - 键值对格式
-- **自定义格式** - 任何文本格式
-
-## ⚙️ 配置选项说明
-
-### 📊 配置参数详表
-
-| 参数名 | 类型 | 默认值 | 说明 | 示例 |
-|--------|------|--------|------|------|
-| `LogFilePath` | `string` | `""` | 日志文件路径 | `"logs/app.log"` |
-| `MaxSize` | `int` | `10` | 单个文件最大大小（MB） | `100` |
-| `MaxFiles` | `int` | `0` | 最大历史文件数量 | `5` |
-| `MaxAge` | `int` | `0` | 最大保留天数 | `30` |
-| `LocalTime` | `bool` | `true` | 使用本地时间命名 | `true` |
-| `Compress` | `bool` | `false` | 是否压缩备份文件 | `true` |
-| `FilePerm` | `os.FileMode` | `0600` | 文件权限 | `0644` |
+- 详细 API、功能/格式与配置项请参见 [APIDOC.md](APIDOC.md)
 
 ### 🎯 推荐配置场景
 
@@ -836,22 +771,6 @@ git push origin feature/your-feature-name
 ## 📄 许可证
 
 本项目采用 **MIT 许可证** - 详见 [LICENSE](LICENSE) 文件
-
-```
-MIT License
-
-Copyright (c) 2025 LogRotateX
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
 
 ## 🙏 致谢
 

@@ -13,22 +13,20 @@ import (
 
 // 编译时接口实现检查
 var (
-	_ io.Writer = (*BufferedWriter)(nil)
-	_ io.Closer = (*BufferedWriter)(nil)
+	_ io.WriteCloser = (*BufferedWriter)(nil)
 )
 
 // BufferedWriter 带缓冲批量写入器
 // 可以包装任何写入器和关闭器，提供批量写入功能
 type BufferedWriter struct {
-	writer io.Writer     // 底层写入器（必需）
-	closer io.Closer     // 底层关闭器（必需）
-	buffer *bytes.Buffer // 缓冲区
-	mutex  sync.RWMutex  // 保护缓冲区和状态（读写锁）
+	wc     io.WriteCloser // 底层写入+关闭器（必需）
+	buffer *bytes.Buffer  // 缓冲区
+	mutex  sync.RWMutex   // 保护缓冲区和状态（读写锁）
 
 	// 三重刷新条件
-	maxBufferSize int           // 最大缓冲区大小（字节）
-	maxWriteCount int           // 最大写入次数
-	flushInterval time.Duration // 刷新间隔
+	maxBufferSize int           // 最大缓冲区大小（字节），默认64KB (0 表示禁用缓冲区大小触发条件)
+	maxWriteCount int           // 最大写入次数，默认500次 (0 表示禁用写入次数触发条件)
+	flushInterval time.Duration // 刷新间隔，默认1秒 (0 表示禁用刷新间隔触发条件)
 
 	// 状态跟踪
 	writeCount int       // 当前写入次数
@@ -38,9 +36,9 @@ type BufferedWriter struct {
 
 // BufCfg 缓冲写入器配置
 type BufCfg struct {
-	MaxBufferSize int           // 最大缓冲区大小，默认64KB
-	MaxWriteCount int           // 最大写入次数，默认500次
-	FlushInterval time.Duration // 刷新间隔，默认1秒
+	MaxBufferSize int           // 最大缓冲区大小，默认64KB (0 表示禁用缓冲区大小触发条件)
+	MaxWriteCount int           // 最大写入次数，默认500次 (0 表示禁用写入次数触发条件)
+	FlushInterval time.Duration // 刷新间隔，默认1秒 (0 表示禁用刷新间隔触发条件)
 }
 
 // DefBufCfg 默认缓冲写入器配置
@@ -59,52 +57,41 @@ func DefBufCfg() *BufCfg {
 var NewBW = NewBufferedWriter
 
 // NewBufferedWriter 创建新的带缓冲批量写入器
-func NewBufferedWriter(writer io.Writer, closer io.Closer, config *BufCfg) *BufferedWriter {
-	if writer == nil {
-		panic("logrotatex: writer cannot be nil")
-	}
-	if closer == nil {
-		panic("logrotatex: closer cannot be nil")
+//
+// 参数:
+//   - wc: 底层写入+关闭器（必需）
+//   - config: 配置（可选，如果为空，使用默认值）
+//
+// 返回值:
+//   - *BufferedWriter: 新的带缓冲批量写入器实例
+func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
+	// 校验参数：WriteCloser 不能为空
+	if wc == nil {
+		panic("logrotatex: WriteCloser cannot be nil")
 	}
 	if config == nil {
-		config = DefBufCfg()
-	} else {
-		// 严格校验：非法值直接 panic，快速失败
-		if config.MaxBufferSize <= 0 {
-			panic("logrotatex: MaxBufferSize must be > 0")
-		}
-		if config.MaxWriteCount <= 0 {
-			panic("logrotatex: MaxWriteCount must be > 0")
-		}
-		if config.FlushInterval <= 0 {
-			panic("logrotatex: FlushInterval must be > 0")
-		}
+		config = DefBufCfg() // 配置如果为空，使用默认值
+	}
+
+	// 严格校验：非法值直接 panic，快速失败
+	if config.MaxBufferSize < 0 {
+		panic("logrotatex: MaxBufferSize must be >= 0")
+	}
+	if config.MaxWriteCount < 0 {
+		panic("logrotatex: MaxWriteCount must be >= 0")
+	}
+	if config.FlushInterval < 0 {
+		panic("logrotatex: FlushInterval must be >= 0")
 	}
 
 	return &BufferedWriter{
-		writer:        writer,                                                 // 底层写入器（必需）
-		closer:        closer,                                                 // 底层关闭器（必需）
+		wc:            wc,                                                     // 底层写入+关闭器（必需）
 		buffer:        bytes.NewBuffer(make([]byte, 0, config.MaxBufferSize)), // 初始化缓冲区
 		maxBufferSize: config.MaxBufferSize,                                   // 最大缓冲区大小（字节）
 		maxWriteCount: config.MaxWriteCount,                                   // 最大写入次数
 		flushInterval: config.FlushInterval,                                   // 刷新间隔
 		lastFlush:     time.Now(),                                             // 初始化为当前时间
 	}
-}
-
-// NewBFL 是 NewBufFromL 的简写形式，用于从 LogRotateX 创建缓冲写入器。
-var NewBFL = NewBufFromL
-
-// NewBufFromL 从 LogRotateX 创建缓冲写入器的便捷方法
-//
-// 参数:
-//   - logger: LogRotateX 实例
-//   - config: 缓冲写入器配置（可选）
-//
-// 返回值:
-//   - *BufferedWriter: 配置好的缓冲写入器
-func NewBufFromL(logger *LogRotateX, config *BufCfg) *BufferedWriter {
-	return NewBufferedWriter(logger, logger, config)
 }
 
 // Write 实现 io.Writer 接口
@@ -142,14 +129,30 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 }
 
 // shouldFlush 检查是否应该刷新缓冲区
-// 三重条件：缓冲区大小 OR 写入次数 OR 刷新间隔
+//
+// 返回值:
+//   - bool: 是否应该刷新缓冲区
+//
+// 注意:
+//   - 三重条件：缓冲区大小 OR 写入次数 OR 刷新间隔
+//   - 如果满足任意一个条件，则刷新缓冲区
+//   - 0 表示禁用对应触发条件
 func (bw *BufferedWriter) shouldFlush() bool {
-	// 先检查大小和数量条件，避免不必要的时间计算
-	if bw.buffer.Len() >= bw.maxBufferSize || bw.writeCount >= bw.maxWriteCount {
+	// 检查是否满足缓冲区更新条件
+	if bw.maxBufferSize > 0 && bw.buffer.Len() >= bw.maxBufferSize {
 		return true
 	}
-	// 只有在前两个条件都不满足时才检查时间
-	return time.Since(bw.lastFlush) >= bw.flushInterval
+
+	// 检查是否满足写入次数更新条件
+	if bw.maxWriteCount > 0 && bw.writeCount >= bw.maxWriteCount {
+		return true
+	}
+
+	// 检查是否满足刷新间隔条件
+	if bw.flushInterval > 0 && time.Since(bw.lastFlush) >= bw.flushInterval {
+		return true
+	}
+	return false
 }
 
 // flushLocked 刷新缓冲区
@@ -159,7 +162,7 @@ func (bw *BufferedWriter) flushLocked() error {
 	}
 
 	// 使用 bytes.Buffer.WriteTo 来处理部分写入与循环写入
-	if _, err := bw.buffer.WriteTo(bw.writer); err != nil {
+	if _, err := bw.buffer.WriteTo(bw.wc); err != nil {
 		// 出错时，WriteTo 已消耗掉已写出的前缀，剩余数据仍保留在缓冲区
 		return err
 	}
@@ -192,8 +195,8 @@ func (bw *BufferedWriter) Close() error {
 	err := bw.flushLocked()
 
 	// 关闭底层写入器
-	if bw.closer != nil {
-		if closeErr := bw.closer.Close(); closeErr != nil && err == nil {
+	if bw.wc != nil {
+		if closeErr := bw.wc.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}

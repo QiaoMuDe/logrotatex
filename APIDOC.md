@@ -20,12 +20,6 @@ Package logrotatex 提供了一个日志轮转功能的实现，用于管理日�
 
 ## VARIABLES
 
-### NewBFL
-```go
-var NewBFL = NewBufFromL
-```
-NewBFL 是 NewBufFromL 的简写形式，用于从 LogRotateX 创建缓冲写入器。
-
 ### NewBW
 ```go
 var NewBW = NewBufferedWriter
@@ -68,26 +62,14 @@ type BufferedWriter struct {
     // Has unexported fields.
 }
 ```
-BufferedWriter 带缓冲批量写入器 可以包装任何写入器和关闭器，提供批量写入功能
+BufferedWriter 带缓冲批量写入器 可以包装任何 io.WriteCloser，提供批量写入功能
 
-#### NewBufFromL
 
-```go
-func NewBufFromL(logger *LogRotateX, config *BufCfg) *BufferedWriter
-```
-NewBufFromL 从 LogRotateX 创建缓冲写入器的便捷方法
-
-**参数：**
-- `logger`: LogRotateX 实例
-- `config`: 缓冲写入器配置（可选）
-
-**返回值：**
-- `*BufferedWriter`: 配置好的缓冲写入器
 
 #### NewBufferedWriter
 
 ```go
-func NewBufferedWriter(writer io.Writer, closer io.Closer, config *BufCfg) *BufferedWriter
+func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter
 ```
 NewBufferedWriter 创建新的带缓冲批量写入器
 
