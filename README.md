@@ -225,7 +225,7 @@ func main() {
     logger := logrotatex.NewLogRotateX("logs/app.log")
     
     // 创建缓冲写入器，显著提升性能
-    buffered := logrotatex.NewBufferedWriter(logger, DefBufCfg()) // 使用默认配置
+    buffered := logrotatex.NewBufferedWriter(logger, logrotatex.DefBufCfg()) // 使用默认配置
     defer buffered.Close()
     
     // 高性能批量写入
@@ -247,6 +247,7 @@ package main
 
 import (
     "gitee.com/MM-Q/logrotatex"
+    "time"
 )
 
 func main() {
@@ -334,7 +335,6 @@ import (
 func main() {
     // 创建轮转器
     rotator := logrotatex.NewLogRotateX("logs/app.log")
-    rotator.MaxFiles = 100
     rotator.MaxFiles = 5
     rotator.Compress = true
     defer rotator.Close()
@@ -374,7 +374,6 @@ import (
 func setupZapLogger() *zap.Logger {
     // 创建轮转器
     rotator := logrotatex.NewLogRotateX("logs/app.log")
-    rotator.MaxSize = 100
     rotator.MaxSize = 10
     rotator.MaxAge = 30
     rotator.Compress = true
@@ -596,7 +595,7 @@ var globalLogger *logrotatex.LogRotateX
 func init() {
     globalLogger = logrotatex.NewLogRotateX("logs/app.log")
     globalLogger.MaxSize = 50
-    globalLogger.MaxSize = 5
+    globalLogger.MaxFiles = 5
     globalLogger.Compress = true
   
     // 设置为标准日志输出
