@@ -49,7 +49,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 ### 🚀 缓冲写入器 (BufferedWriter)
 - 📦 **批量写入** - 三重触发条件智能刷新
 - ⚡ **性能提升** - 减少系统调用开销
-- 🔧 **通用设计** - 支持任意 io.WriteCloser
+- 🔧 **通用设计** - 支持 io.WriteCloser，且提供 WrapWriter 适配 io.Writer；提供 NewStdoutBW 便捷函数
 - ⏱️ **实时控制** - 缓冲区大小、写入次数、刷新间隔三重保障
 
 </td>
@@ -316,6 +316,39 @@ func main() {
 }
 ```
 
+</details>
+
+<details>
+<summary><b>🖥️ 终端输出缓冲（stdout）（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "os"
+    "time"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 终端输出缓冲：减少频繁写入 stdout
+    cfg := &logrotatex.BufCfg{
+        MaxBufferSize: 32 * 1024,               // 32KB 缓冲区
+        MaxWriteCount: 200,                     // 每200次触发一次刷新
+        FlushInterval: 200 * time.Millisecond,  // 200ms 刷新间隔
+    }
+
+    bw := logrotatex.NewStdoutBW(cfg)
+    defer bw.Close() // 安全关闭缓冲器，不会关闭 stdout
+
+    _, _ = bw.Write([]byte("hello stdout buffered
+"))
+
+    // 也可结合 WrapWriter 适配任意 io.Writer
+    // wc := logrotatex.WrapWriter(os.Stdout)
+    // bw := logrotatex.NewBufferedWriter(wc, cfg)
+}
+```
 </details>
 
 ### 🔌 与主流日志库集成
