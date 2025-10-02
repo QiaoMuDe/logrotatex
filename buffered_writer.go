@@ -7,6 +7,7 @@ package logrotatex
 import (
 	"bytes"
 	"io"
+	"os"
 	"sync"
 	"time"
 )
@@ -51,6 +52,33 @@ func DefBufCfg() *BufCfg {
 		MaxWriteCount: 500,             // 500次写入
 		FlushInterval: 1 * time.Second, // 1秒刷新间隔
 	}
+}
+
+/*
+不可关闭的 WriteCloser 包装器，用于避免关闭标准输出等不应被关闭的 Writer。
+*/
+type noCloseWC struct{ io.Writer }
+
+func (noCloseWC) Close() error { return nil }
+
+// WrapWriter 将 io.Writer 包装为不可关闭的 io.WriteCloser (具体类型为 noCloseWC)
+//
+// 参数:
+//   - w: 要包装的 io.Writer
+//
+// 返回值:
+//   - io.WriteCloser: 不可关闭的 WriteCloser 包装器
+func WrapWriter(w io.Writer) io.WriteCloser {
+	return noCloseWC{w}
+}
+
+// NewStdoutBW 创建面向标准输出的带缓冲写入器（不会关闭 stdout）
+// 仅接收配置结构体，使用 os.Stdout 作为底层输出。
+//
+// 注意：
+//   - 调用 Close() 不会关闭标准输出，适合长期运行的场景。
+func NewStdoutBW(config *BufCfg) *BufferedWriter {
+	return NewBufferedWriter(WrapWriter(os.Stdout), config)
 }
 
 // NewBW 是 NewBufferedWriter 的简写形式，用于创建新的 BufferedWriter 实例。
