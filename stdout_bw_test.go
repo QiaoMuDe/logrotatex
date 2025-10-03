@@ -1,3 +1,4 @@
+/* stdout_bw_test.go 包含针对标准输出缓冲写入器的测试，用于验证写入、刷新与关闭语义（不关闭 stdout）。*/
 package logrotatex
 
 import (

@@ -1,3 +1,4 @@
+/* buffered_writer_test.go 包含对带缓冲批量写入器的测试，用于验证刷新条件、并发安全与集成行为。*/
 package logrotatex
 
 import (

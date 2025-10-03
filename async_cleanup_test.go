@@ -1,3 +1,4 @@
+/* async_cleanup_test.go 包含对异步清理机制的测试，用于验证轮转触发的后台清理、合并触发与关闭语义。*/
 package logrotatex
 
 import (

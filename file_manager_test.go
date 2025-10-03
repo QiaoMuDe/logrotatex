@@ -1,3 +1,4 @@
+/* file_manager_test.go 包含对文件管理逻辑的测试，用于验证删除策略、保留规则与性能表现。*/
 package logrotatex
 
 import (
