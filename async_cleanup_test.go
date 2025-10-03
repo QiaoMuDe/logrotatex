@@ -17,7 +17,7 @@ func waitUntil(t *testing.T, timeout time.Duration, interval time.Duration, cond
 		}
 		time.Sleep(interval)
 	}
-	t.Fatalf(onTimeoutMsg)
+	t.Fatal(onTimeoutMsg)
 }
 
 // TestAsyncCleanup_BasicTrigger
@@ -125,17 +125,24 @@ func TestAsyncCleanup_CloseWaits(t *testing.T) {
 	dir := makeBoundaryTempDir("TestAsyncCleanup_CloseWaits", t)
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	// 创建多一些旧文件，保证清理有工作量
+	// 在子目录中进行隔离，避免其他用例影响
+	subdir := filepath.Join(dir, "closewaits")
+	if err := os.MkdirAll(subdir, 0755); err != nil {
+		t.Fatalf("创建子目录失败: %v", err)
+	}
+
+	// 创建多一些旧文件，保证清理有工作量（放在子目录中）
 	for i := 0; i < 5; i++ {
-		ts := 20250101000000 + i
-		name := filepath.Join(dir, "test_"+time.Unix(int64(ts), 0).Format("20060102150405")+".log")
+		// 使用标准备份时间格式 20060102150405，确保 fastTimeFromName 可解析
+		tstamp := time.Date(2025, 1, 1, 0, i, 0, 0, time.Local)
+		name := filepath.Join(subdir, "test_"+tstamp.Format(backupTimeFormat)+".log")
 		if err := os.WriteFile(name, []byte("x"), 0644); err != nil {
 			t.Fatalf("创建旧文件失败: %v", err)
 		}
 	}
 
 	l := &LogRotateX{
-		LogFilePath: filepath.Join(dir, "test.log"),
+		LogFilePath: filepath.Join(subdir, "test.log"),
 		MaxSize:     1,
 		MaxFiles:    2, // 最终应保留最多2个旧文件
 		Compress:    false,
@@ -154,7 +161,7 @@ func TestAsyncCleanup_CloseWaits(t *testing.T) {
 	}
 
 	// 验证最终旧文件数量不超过2
-	files, _ := os.ReadDir(dir)
+	files, _ := os.ReadDir(subdir)
 	oldCount := 0
 	for _, f := range files {
 		if strings.HasPrefix(f.Name(), "test_") && strings.HasSuffix(f.Name(), ".log") && f.Name() != "test.log" {

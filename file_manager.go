@@ -152,13 +152,20 @@ func (l *LogRotateX) cleanupAsync() {
 		return
 	}
 
-	// 已在运行，标记重跑
-	l.rerunNeeded.Store(true)
+	// 已在运行：真正快速失败，只做一次从 false->true 的标记
+	_ = l.rerunNeeded.CompareAndSwap(false, true)
 }
 
 // 单协程清理循环：每轮都现查现算，错误仅打印
 func (l *LogRotateX) runCleanupLoop() {
-	defer func() { l.cleanupRunning.Store(false) }() // 退出时重置运行状态
+	defer func() {
+		// panic 保护，防止 wg 和 running 状态失配
+		if r := recover(); r != nil {
+			fmt.Printf("logrotatex: panic in async cleanup: %v\n", r)
+		}
+
+		l.cleanupRunning.Store(false) // 退出时重置运行状态
+	}()
 
 	for {
 		// 关闭后退出
