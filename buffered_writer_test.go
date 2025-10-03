@@ -198,8 +198,8 @@ func TestWrite(t *testing.T) {
 		_ = bw.Close()
 
 		_, err := bw.Write([]byte("test"))
-		if err != io.ErrClosedPipe {
-			t.Errorf("Expected ErrClosedPipe, got %v", err)
+		if !errors.Is(err, io.ErrClosedPipe) && err.Error() != "logrotatex: write on closed" {
+			t.Fatalf("Expected ErrClosedPipe or 'logrotatex: write on closed', got %v", err)
 		}
 	})
 }

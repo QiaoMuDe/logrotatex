@@ -13,6 +13,7 @@
 package logrotatex
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -125,16 +126,28 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 		panic(fmt.Sprintf("logrotatex: failed to create log directory: %v", err))
 	}
 
-	// 创建 LogRotateX 实例并设置默认值
+	// 创建 LogRotateX 实例并设置默认值（显式初始化所有内部字段）
 	logger := &LogRotateX{
-		LogFilePath: logFilePath,     // 日志文件路径
-		MaxSize:     10,              // 10MB
-		MaxAge:      0,               // 0天 (默认不清理历史文件)
-		MaxFiles:    0,               // 0个备份文件 (默认不清理备份文件)
-		LocalTime:   true,            // 使用本地时间
-		Compress:    false,           // 禁用压缩
-		filePerm:    defaultFilePerm, // 文件权限
+		LogFilePath:    logFilePath,      // 日志文件路径
+		Async:          false,            // 显式初始化
+		MaxSize:        10,               // 10MB
+		MaxAge:         0,                // 0天 (默认不清理历史文件)
+		MaxFiles:       0,                // 0个备份文件 (默认不清理备份文件)
+		LocalTime:      true,             // 使用本地时间
+		Compress:       false,            // 禁用压缩
+		filePerm:       defaultFilePerm,  // 文件权限
+		size:           0,                // 当前文件大小
+		mu:             sync.Mutex{},     // 互斥锁
+		closed:         atomic.Bool{},    // 关闭标志（原子）
+		cleanupRunning: atomic.Bool{},    // 清理协程运行标志（原子）
+		rerunNeeded:    atomic.Bool{},    // 重跑需求标志（原子）
+		wg:             sync.WaitGroup{}, // 等待组
 	}
+
+	// 显式设置原子布尔的初始值为 false
+	logger.closed.Store(false)
+	logger.cleanupRunning.Store(false)
+	logger.rerunNeeded.Store(false)
 
 	return logger
 }
@@ -154,7 +167,7 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 
 	// 关闭后快速短路，避免继续 open/rotate/write
 	if l.closed.Load() {
-		return 0, fmt.Errorf("logrotatex: write on closed")
+		return 0, errors.New("logrotatex: write on closed")
 	}
 
 	// 计算要写入的数据长度
@@ -176,7 +189,7 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 
 	// 再次检查文件是否已打开
 	if l.file == nil {
-		return 0, fmt.Errorf("logrotatex: file handle is nil after attempting to open or rotate")
+		return 0, errors.New("logrotatex: file handle is nil after attempting to open or rotate")
 	}
 
 	// 安全地将所有数据写入文件
@@ -221,7 +234,7 @@ func (l *LogRotateX) Sync() error {
 
 	// 二次检查，避免与关闭并发竞态
 	if l.closed.Load() {
-		return fmt.Errorf("logrotatex: sync on closed")
+		return errors.New("logrotatex: sync on closed")
 	}
 
 	// 检查文件是否已打开，如果已打开则执行同步操作

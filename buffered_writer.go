@@ -6,9 +6,11 @@ package logrotatex
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,9 +32,9 @@ type BufferedWriter struct {
 	flushInterval time.Duration // 刷新间隔，默认1秒 (0 表示禁用刷新间隔触发条件)
 
 	// 状态跟踪
-	writeCount int       // 当前写入次数
-	lastFlush  time.Time // 上次刷新时间
-	closed     bool      // 是否已关闭
+	writeCount int         // 当前写入次数
+	lastFlush  time.Time   // 上次刷新时间
+	closed     atomic.Bool // 是否已关闭
 }
 
 // BufCfg 缓冲写入器配置
@@ -112,14 +114,19 @@ func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
 		panic("logrotatex: FlushInterval must be >= 0")
 	}
 
-	return &BufferedWriter{
+	bw := &BufferedWriter{
 		wc:            wc,                                                     // 底层写入+关闭器（必需）
 		buffer:        bytes.NewBuffer(make([]byte, 0, config.MaxBufferSize)), // 初始化缓冲区
+		mutex:         sync.RWMutex{},                                         // 显式初始化读写锁
 		maxBufferSize: config.MaxBufferSize,                                   // 最大缓冲区大小（字节）
 		maxWriteCount: config.MaxWriteCount,                                   // 最大写入次数
 		flushInterval: config.FlushInterval,                                   // 刷新间隔
+		writeCount:    0,                                                      // 显式初始化写入计数
 		lastFlush:     time.Now(),                                             // 初始化为当前时间
+		closed:        atomic.Bool{},                                          // 初始化为未关闭状态
 	}
+	bw.closed.Store(false) // 显式设置为未关闭状态
+	return bw
 }
 
 // Write 实现 io.Writer 接口
@@ -135,8 +142,8 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
 
-	if bw.closed {
-		return 0, io.ErrClosedPipe
+	if bw.closed.Load() {
+		return 0, errors.New("logrotatex: write on closed")
 	}
 
 	// 1. 写入缓冲区
@@ -185,6 +192,7 @@ func (bw *BufferedWriter) shouldFlush() bool {
 
 // flushLocked 刷新缓冲区
 func (bw *BufferedWriter) flushLocked() error {
+	// 如果缓冲区为空，则无需刷新
 	if bw.buffer.Len() == 0 {
 		return nil
 	}
@@ -206,6 +214,11 @@ func (bw *BufferedWriter) flushLocked() error {
 func (bw *BufferedWriter) Flush() error {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
+
+	// 外部触发刷新：若已关闭则直接返回，防止重复刷新
+	if bw.closed.Load() {
+		return nil
+	}
 	return bw.flushLocked()
 }
 
@@ -214,10 +227,10 @@ func (bw *BufferedWriter) Close() error {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
 
-	if bw.closed {
+	// 原子设置关闭，仅执行一次
+	if !bw.closed.CompareAndSwap(false, true) {
 		return nil // 已关闭，无需重复操作
 	}
-	bw.closed = true // 标记为已关闭
 
 	// 关闭前最后一次刷新，确保数据不丢失
 	err := bw.flushLocked()
@@ -250,7 +263,7 @@ func (bw *BufferedWriter) WriteCount() int {
 func (bw *BufferedWriter) IsClosed() bool {
 	bw.mutex.RLock()
 	defer bw.mutex.RUnlock()
-	return bw.closed
+	return bw.closed.Load()
 }
 
 // TimeSinceLastFlush 返回距离上次刷新的时间
