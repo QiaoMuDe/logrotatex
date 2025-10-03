@@ -381,21 +381,34 @@ func TestErrorPaths(t *testing.T) {
 			t.Fatalf("删除文件失败: %v", err)
 		}
 
-		// 再次写入，应该能够重新创建文件
+		// 再次写入，关闭后应返回明确错误
 		_, err = l.Write([]byte("after deletion"))
+		if err == nil {
+			t.Fatalf("文件被删除后写入应失败")
+		}
+		if !strings.Contains(err.Error(), "logrotatex: write on closed") {
+			t.Fatalf("关闭后写入返回的错误不符合预期: %v", err)
+		}
+
+		// 使用新的实例重新创建文件并写入
+		l2 := &LogRotateX{
+			LogFilePath: boundaryLogFile(dir),
+			MaxSize:     1,
+		}
+		defer func() {
+			if cerr := l2.Close(); cerr != nil {
+				t.Logf("关闭新日志实例失败: %v", cerr)
+			}
+		}()
+
+		_, err = l2.Write([]byte("after deletion recreated"))
 		if err != nil {
-			t.Fatalf("文件被删除后写入失败: %v", err)
+			t.Fatalf("使用新实例写入失败: %v", err)
 		}
 
 		// 检查文件是否重新创建
-		if _, statErr := os.Stat(l.LogFilePath); os.IsNotExist(statErr) {
+		if _, statErr := os.Stat(l2.LogFilePath); os.IsNotExist(statErr) {
 			t.Error("文件应该被重新创建")
-		}
-
-		// 最终关闭文件
-		err = l.Close()
-		if err != nil {
-			t.Logf("最终关闭日志文件失败: %v", err)
 		}
 	})
 

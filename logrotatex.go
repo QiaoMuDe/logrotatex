@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -82,11 +83,11 @@ type LogRotateX struct {
 	// 默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
 
-	filePerm  os.FileMode // filePerm 是日志文件的权限模式。默认值为 0600
-	size      int64       // size 是当前日志文件的大小（以字节为单位）
-	file      *os.File    // file 是当前打开的日志文件
-	mu        sync.Mutex  // mu 是互斥锁，用于保护文件操作
-	closeOnce sync.Once   // closeOnce 是一个 sync.Once，用于确保只执行一次关闭操作
+	filePerm os.FileMode // filePerm 是日志文件的权限模式。默认值为 0600
+	size     int64       // size 是当前日志文件的大小（以字节为单位）
+	file     *os.File    // file 是当前打开的日志文件
+	mu       sync.Mutex  // mu 是互斥锁，用于保护文件操作
+	closed   atomic.Bool // closed 标志：true 表示已关闭；关闭后 Write/Sync 直接拒绝
 }
 
 // NewLRX 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
@@ -146,6 +147,11 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// 关闭后快速短路，避免继续 open/rotate/write
+	if l.closed.Load() {
+		return 0, fmt.Errorf("logrotatex: write on closed")
+	}
+
 	// 计算要写入的数据长度
 	writeLen := int64(len(p))
 
@@ -183,15 +189,13 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 // 返回值:
 //   - error: 关闭失败时返回错误，否则返回 nil
 func (l *LogRotateX) Close() error {
-	var closeErr error
-
-	// 使用 sync.Once 确保整个关闭操作只执行一次
-	l.closeOnce.Do(func() {
-		// 直接调用 LogRotateX 的 close 方法, 执行具体的关闭操作
-		closeErr = l.close()
-	})
-
-	return closeErr
+	// 使用原子 CAS 保证关闭逻辑只执行一次
+	if !l.closed.CompareAndSwap(false, true) {
+		// 已关闭：幂等返回
+		return nil
+	}
+	// 执行具体的关闭操作
+	return l.close()
 }
 
 // Sync 强制将缓冲区数据同步到磁盘。
@@ -201,8 +205,12 @@ func (l *LogRotateX) Close() error {
 func (l *LogRotateX) Sync() error {
 	// 加锁以确保并发安全，防止在同步过程中文件被其他操作修改
 	l.mu.Lock()
-	// 函数返回时解锁，保证锁一定会被释放
 	defer l.mu.Unlock()
+
+	// 二次检查，避免与关闭并发竞态
+	if l.closed.Load() {
+		return fmt.Errorf("logrotatex: sync on closed")
+	}
 
 	// 检查文件是否已打开，如果已打开则执行同步操作
 	if l.file != nil {
