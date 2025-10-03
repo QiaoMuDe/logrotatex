@@ -63,6 +63,9 @@ type LogRotateX struct {
 	// 如果该值为空，则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
 	LogFilePath string `json:"logfilepath" yaml:"logfilepath"`
 
+	// 是否启用异步清理 (单协程、合并触发)
+	Async bool `json:"async" yaml:"async"`
+
 	// MaxSize 是单个日志文件的最大大小（以 MB 为单位）。默认值为 10 MB。
 	// 超过此大小的日志文件将被轮转。
 	MaxSize int `json:"maxsize" yaml:"maxsize"`
@@ -83,11 +86,15 @@ type LogRotateX struct {
 	// 默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
 
-	filePerm os.FileMode // filePerm 是日志文件的权限模式。默认值为 0600
-	size     int64       // size 是当前日志文件的大小（以字节为单位）
-	file     *os.File    // file 是当前打开的日志文件
-	mu       sync.Mutex  // mu 是互斥锁，用于保护文件操作
-	closed   atomic.Bool // closed 标志：true 表示已关闭；关闭后 Write/Sync 直接拒绝
+	// 内部状态
+	filePerm       os.FileMode    // filePerm 是日志文件的权限模式。默认值为 0600
+	size           int64          // size 是当前日志文件的大小（以字节为单位）
+	file           *os.File       // file 是当前打开的日志文件
+	mu             sync.Mutex     // mu 是互斥锁，用于保护文件操作
+	closed         atomic.Bool    // closed 标志：true 表示已关闭；关闭后 Write/Sync 直接拒绝
+	cleanupRunning atomic.Bool    // 清理协程运行标志: false=未运行，true=运行中
+	rerunNeeded    atomic.Bool    // 重跑需求标志: false=不需要重跑，true=需要在本轮后再跑一次
+	wg             sync.WaitGroup // wg 是等待组，用于等待清理协程退出
 }
 
 // NewLRX 是 NewLogRotateX 的简写形式，用于创建新的 LogRotateX 实例。
@@ -195,7 +202,14 @@ func (l *LogRotateX) Close() error {
 		return nil
 	}
 	// 执行具体的关闭操作
-	return l.close()
+	if err := l.close(); err != nil {
+		return err
+	}
+	// 若启用异步清理，等待后台协程收敛
+	if l.Async {
+		l.wg.Wait()
+	}
+	return nil
 }
 
 // Sync 强制将缓冲区数据同步到磁盘。

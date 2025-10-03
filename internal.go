@@ -178,9 +178,15 @@ func (l *LogRotateX) rotate() error {
 		return err
 	}
 
-	// 同步执行清理操作，包括压缩旧日志文件、删除过期日志文件等操作。
-	if err := l.cleanupSync(); err != nil {
-		fmt.Printf("logrotatex: cleanup failed during rotation: %v\n", err)
+	// 清理操作：按开关选择同步或异步
+	if l.Async {
+		// 异步：不阻塞轮转/写入
+		l.cleanupAsync()
+	} else {
+		// 同步：保持兼容
+		if err := l.cleanupSync(); err != nil {
+			fmt.Printf("logrotatex: cleanup failed during rotation: %v\n", err)
+		}
 	}
 
 	return nil

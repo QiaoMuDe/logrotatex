@@ -22,6 +22,11 @@ import (
 // 返回值:
 //   - error: 操作失败时返回错误，否则返回 nil
 func (l *LogRotateX) cleanupSync() error {
+	// 若已关闭，直接跳过
+	if l.closed.Load() {
+		return nil
+	}
+
 	// 快速路径: 如果没有设置保留数量, 保留天数, 且不启用压缩, 则直接返回
 	if l.MaxFiles <= 0 && l.MaxAge <= 0 && !l.Compress {
 		return nil
@@ -62,6 +67,11 @@ func (l *LogRotateX) cleanupSync() error {
 // 返回值:
 //   - error: 操作失败时返回错误，否则返回 nil
 func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
+	// 若已关闭，直接跳过
+	if l.closed.Load() {
+		return nil
+	}
+
 	// 收集所有错误
 	var errors []error
 
@@ -120,6 +130,87 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	}
 
 	return nil
+}
+
+// cleanupAsync 触发异步清理（单协程、合并触发）
+func (l *LogRotateX) cleanupAsync() {
+	// 关闭后不再调度
+	if l.closed.Load() {
+		return
+	}
+
+	// 快速路径：无需清理直接返回
+	if l.MaxFiles <= 0 && l.MaxAge <= 0 && !l.Compress {
+		return
+	}
+
+	// 尝试启动单协程（CAS 0->1）
+	if l.cleanupRunning.CompareAndSwap(false, true) {
+		l.wg.Go(func() {
+			l.runCleanupLoop()
+		})
+		return
+	}
+
+	// 已在运行，标记重跑
+	l.rerunNeeded.Store(true)
+}
+
+// 单协程清理循环：每轮都现查现算，错误仅打印
+func (l *LogRotateX) runCleanupLoop() {
+	defer func() { l.cleanupRunning.Store(false) }() // 退出时重置运行状态
+
+	for {
+		// 关闭后退出
+		if l.closed.Load() {
+			return
+		}
+
+		// 1) 最新文件状态
+		files, err := l.oldLogFiles()
+		if err != nil {
+			fmt.Printf("logrotatex: failed to get old log files: %v\n", err)
+
+			// 如果没有新的触发需求，直接退出循环，避免空转
+			if !l.rerunNeeded.Load() {
+				break
+			}
+
+			// 有新的触发需求：轻微退避，避免忙等
+			time.Sleep(150 * time.Millisecond)
+
+			// 消费掉一次“需要重跑”的信号并继续下一轮
+			_ = l.rerunNeeded.Swap(false)
+			continue
+		}
+
+		// 2) 删除列表
+		var remove []logInfo
+		if files != nil {
+			remove = l.getFilesToRemove(files)
+		}
+
+		// 3) 压缩列表
+		var compress []logInfo
+		if l.Compress && files != nil {
+			for _, f := range files {
+				if !strings.HasSuffix(f.Name(), compressSuffix) {
+					compress = append(compress, f)
+				}
+			}
+		}
+
+		// 4) 执行清理
+		if err := l.executeCleanup(remove, compress); err != nil {
+			fmt.Printf("logrotatex: async cleanup error: %v\n", err)
+		}
+
+		// 5) 是否重跑（合并触发：多次触发只续跑一轮）
+		if l.rerunNeeded.Swap(false) {
+			continue
+		}
+		break
+	}
 }
 
 // oldLogFiles 返回当前目录中的所有备份日志文件，按时间戳排序。
