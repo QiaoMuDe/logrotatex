@@ -2,7 +2,7 @@
 
 # 🔄 LogRotateX - Go 日志轮转工具
 
-[![Go Version](https://img.shields.io/badge/Go-1.24.4+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.25.0+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Release](https://img.shields.io/badge/Release-v1.0.0-brightgreen.svg)](https://gitee.com/MM-Q/logrotatex/releases)
 [![Go Report Card](https://img.shields.io/badge/Go%20Report-A+-brightgreen.svg)](https://goreportcard.com/report/gitee.com/MM-Q/logrotatex)
@@ -86,7 +86,7 @@ go get -u gitee.com/MM-Q/logrotatex
 
 | 项目 | 要求 |
 |------|------|
-| **Go 版本** | 1.24.4+ |
+| **Go 版本** | 1.25.0+ |
 | **操作系统** | Linux, macOS, Windows |
 | **架构** | amd64, arm64 |
 | **依赖** | 无外部依赖 |

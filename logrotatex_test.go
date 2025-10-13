@@ -1109,7 +1109,7 @@ func TestKeepByDaysAndCountRealFiles(t *testing.T) {
 	// 创建实际文件
 	for _, tf := range testFiles {
 		filePath := filepath.Join(tempDir, tf.name)
-		err := os.WriteFile(filePath, []byte(tf.content), 0644)
+		err = os.WriteFile(filePath, []byte(tf.content), 0644)
 		if err != nil {
 			t.Fatalf("创建测试文件 %s 失败: %v", tf.name, err)
 		}
