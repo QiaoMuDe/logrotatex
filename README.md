@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25.0+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v1.0.0-brightgreen.svg)](https://gitee.com/MM-Q/logrotatex/releases)
+[![Release](https://img.shields.io/badge/Release-v1.1.4-brightgreen.svg)](https://gitee.com/MM-Q/logrotatex/releases)
 [![Go Report Card](https://img.shields.io/badge/Go%20Report-A+-brightgreen.svg)](https://goreportcard.com/report/gitee.com/MM-Q/logrotatex)
 [![Documentation](https://img.shields.io/badge/Documentation-Available-blue.svg)](APIDOC.md)
 
@@ -47,10 +47,12 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 <td colspan="2">
 
 ### 🚀 缓冲写入器 (BufferedWriter)
-- 📦 **批量写入** - 三重触发条件智能刷新
-- ⚡ **性能提升** - 减少系统调用开销
+- 📦 **批量写入** - 三重触发条件智能刷新（缓冲区大小、写入次数、刷新间隔）
+- ⚡ **性能提升** - 减少系统调用开销，提升写入性能
 - 🔧 **通用设计** - 支持 io.WriteCloser，且提供 WrapWriter 适配 io.Writer；提供 NewStdoutBW 便捷函数
-- ⏱️ **实时控制** - 缓冲区大小、写入次数、刷新间隔三重保障
+- ⏱️ **定时刷新器** - 内置定时器协程，确保数据及时写入，防止缓冲区长时间未刷新
+- 🛡️ **错误恢复** - 定时器协程内置 panic 恢复机制，保障服务稳定运行
+- 🎯 **智能控制** - 原子变量状态管理，支持运行时动态关闭检测
 
 </td>
 </tr>
@@ -62,7 +64,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 |------|------|------|
 | 🔌 **无缝集成** | 实现 `io.Writer` 接口 | 兼容所有主流日志库 |
 | ⚡ **高性能** | 优化的文件操作算法 | 支持高频日志写入场景 |
-| 🚀 **缓冲写入** | 带缓冲批量写入器 | 显著提升写入性能，减少系统调用 |
+| 🚀 **缓冲写入** | 带缓冲批量写入器 + 定时刷新器 | 显著提升写入性能，减少系统调用，确保数据及时写入 |
 | 🛡️ **企业级安全** | 多层安全防护机制 | 防止安全漏洞和攻击 |
 | 🔧 **灵活配置** | 丰富的配置选项 | 适应各种使用场景 |
 | 📈 **生产就绪** | 经过充分测试验证 | 可直接用于生产环境 |
@@ -315,6 +317,100 @@ func main() {
 ", elapsed)
 }
 ```
+
+</details>
+
+<details>
+<summary><b>⏱️ 定时刷新器特性（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "time"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 创建日志轮转器
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    
+    // 创建缓冲写入器，使用定时刷新器确保数据及时写入
+    // 定时器会在后台定期检查并刷新缓冲区，防止数据长时间滞留
+    buffered := logrotatex.NewBufferedWriter(logger, logrotatex.DefBufCfg())
+    defer buffered.Close()
+    
+    // 设置标准日志输出到缓冲写入器
+    log.SetOutput(buffered)
+    
+    // 模拟长时间运行的服务
+    for i := 0; i < 10; i++ {
+        log.Printf("服务运行中 - 第 %d 次心跳\n", i+1)
+        
+        // 模拟低频率写入场景
+        // 定时刷新器会确保这些数据及时写入磁盘，即使未达到缓冲区触发条件
+        time.Sleep(2 * time.Second)
+    }
+    
+    // 程序结束时，Close() 会确保所有数据被刷新
+    log.Println("服务正常退出")
+}
+```
+
+**定时刷新器优势：**
+- **数据安全性**：防止缓冲区数据长时间未刷新，确保重要日志及时落盘
+- **低延迟保证**：即使写入频率很低，也能通过定时器保证数据及时性
+- **后台自动运行**：无需手动干预，定时器协程在后台自动管理刷新逻辑
+- **错误恢复机制**：内置 panic 恢复，保障定时器协程稳定运行
+- **优雅关闭**：支持运行时状态检测，关闭时立即停止定时器并刷新剩余数据
+
+</details>
+
+<details>
+<summary><b>⏱️ 定时刷新器特性（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "time"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 创建日志轮转器
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    
+    // 创建缓冲写入器，使用定时刷新器确保数据及时写入
+    // 定时器会在后台定期检查并刷新缓冲区，防止数据长时间滞留
+    buffered := logrotatex.NewBufferedWriter(logger, logrotatex.DefBufCfg())
+    defer buffered.Close()
+    
+    // 设置标准日志输出到缓冲写入器
+    log.SetOutput(buffered)
+    
+    // 模拟长时间运行的服务
+    for i := 0; i < 10; i++ {
+        log.Printf("服务运行中 - 第 %d 次心跳\n", i+1)
+        
+        // 模拟低频率写入场景
+        // 定时刷新器会确保这些数据及时写入磁盘，即使未达到缓冲区触发条件
+        time.Sleep(2 * time.Second)
+    }
+    
+    // 程序结束时，Close() 会确保所有数据被刷新
+    log.Println("服务正常退出")
+}
+```
+
+**定时刷新器优势：**
+- **数据安全性**：防止缓冲区数据长时间未刷新，确保重要日志及时落盘
+- **低延迟保证**：即使写入频率很低，也能通过定时器保证数据及时性
+- **后台自动运行**：无需手动干预，定时器协程在后台自动管理刷新逻辑
+- **错误恢复机制**：内置 panic 恢复，保障定时器协程稳定运行
+- **优雅关闭**：支持运行时状态检测，关闭时立即停止定时器并刷新剩余数据
 
 </details>
 
