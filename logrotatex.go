@@ -85,6 +85,11 @@ type LogRotateX struct {
 	// 默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
 
+	// DateDirLayout 决定是否启用按日期目录存放轮转后的日志。
+	// true: 轮转后的日志存放在 YYYY-MM-DD/ 目录下
+	// false: 轮转后的日志存放在当前目录下（默认）
+	DateDirLayout bool `json:"datedirlayout" yaml:"datedirlayout"`
+
 	// 内部状态
 	filePerm       os.FileMode    // filePerm 是日志文件的权限模式。默认值为 0600
 	size           int64          // size 是当前日志文件的大小（以字节为单位）
@@ -135,6 +140,7 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 		MaxFiles:       0,                // 0个备份文件 (默认不清理备份文件)
 		LocalTime:      true,             // 使用本地时间
 		Compress:       false,            // 禁用压缩
+		DateDirLayout:  false,            // 禁用日期目录（默认行为，向后兼容）
 		filePerm:       defaultFilePerm,  // 文件权限
 		size:           0,                // 当前文件大小
 		mu:             sync.Mutex{},     // 互斥锁
@@ -180,8 +186,8 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	// 检查当前写入是否会导致文件大小超过限制，如果是则触发轮转
-	if l.size+writeLen > l.max() {
+	// 检查当前写入是否会导致文件大小达到或超过限制，如果是则触发轮转
+	if l.size+writeLen >= l.max() {
 		if rotateErr := l.rotate(); rotateErr != nil {
 			return 0, fmt.Errorf("logrotatex: failed to rotate file: %w", rotateErr)
 		}

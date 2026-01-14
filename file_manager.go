@@ -16,6 +16,14 @@ import (
 	"gitee.com/MM-Q/comprx/types"
 )
 
+// scanConfig 日志文件扫描配置
+type scanConfig struct {
+	prefix        string             // 日志文件前缀
+	ext           string             // 日志文件扩展名
+	compressedExt string             // 压缩文件扩展名
+	timestampSet  map[time.Time]bool // 时间戳去重集合 (nil 表示不检查)
+}
+
 // cleanupSync 同步执行日志文件的压缩和清理操作。
 // 根据 MaxBackups、MaxAge 和 Compress 配置处理旧日志文件。
 //
@@ -32,7 +40,7 @@ func (l *LogRotateX) cleanupSync() error {
 		return nil
 	}
 
-	// 获取所有旧的日志文件信息（按时间戳降序排列）
+	// 获取所有旧的日志文件信息 (按时间戳降序排列)
 	files, err := l.oldLogFiles()
 	if err != nil {
 		return fmt.Errorf("logrotatex: failed to get old log files: %w", err)
@@ -78,8 +86,8 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	// 执行文件移除操作
 	if len(remove) > 0 {
 		for _, f := range remove {
-			// 合并路径
-			filePath := filepath.Join(l.dir(), f.Name())
+			// 获取文件的完整路径
+			filePath := l.getFilePath(f)
 
 			// 移除文件
 			if err := os.Remove(filePath); err != nil {
@@ -91,11 +99,11 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	// 执行文件压缩操作
 	if len(compress) > 0 {
 		for _, f := range compress {
-			// 合并路径
-			filePath := filepath.Join(l.dir(), f.Name())
+			// 获取文件的完整路径
+			filePath := l.getFilePath(f)
 			// 压缩文件名生成
 			baseName := strings.TrimSuffix(f.Name(), filepath.Ext(f.Name()))
-			compressPath := filepath.Join(l.dir(), baseName+compressSuffix)
+			compressPath := filepath.Join(filepath.Dir(filePath), baseName+compressSuffix)
 
 			// 创建压缩配置
 			opts := comprx.Options{
@@ -119,6 +127,9 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 		}
 	}
 
+	// 清理空日期目录
+	l.cleanupEmptyDirs()
+
 	// 如果有错误，返回聚合错误
 	if len(errors) > 0 {
 		var errMsg strings.Builder
@@ -132,19 +143,74 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	return nil
 }
 
-// cleanupAsync 触发异步清理（单协程、合并触发）
+// getFilePath 获取日志文件的完整路径
+// 支持日期目录模式和传统模式
+//
+// 参数:
+//   - f: 日志文件信息
+//
+// 返回值:
+//   - string: 文件的完整路径
+func (l *LogRotateX) getFilePath(f logInfo) string {
+	// 如果是日期目录模式，文件路径需要包含日期目录
+	if l.DateDirLayout {
+		// 从文件名中解析日期
+		timestamp := f.timestamp
+		dateDir := timestamp.Format("2006-01-02")
+		return filepath.Join(l.dir(), dateDir, f.Name())
+	}
+	// 传统模式
+	return filepath.Join(l.dir(), f.Name())
+}
+
+// cleanupEmptyDirs 清理空的日期目录
+// 当某个日期目录下的所有文件都被删除后，删除该空目录
+func (l *LogRotateX) cleanupEmptyDirs() {
+	// 如果未启用日期目录模式，直接返回
+	if !l.DateDirLayout {
+		return
+	}
+
+	// 读取根目录
+	files, err := os.ReadDir(l.dir())
+	if err != nil {
+		return
+	}
+
+	for _, f := range files {
+		// 跳过文件和当前日志文件
+		if !f.IsDir() {
+			continue
+		}
+
+		dirPath := filepath.Join(l.dir(), f.Name())
+
+		// 检查目录是否为空
+		dirFiles, err := os.ReadDir(dirPath)
+		if err != nil {
+			continue
+		}
+
+		// 如果目录为空，删除它
+		if len(dirFiles) == 0 {
+			_ = os.Remove(dirPath)
+		}
+	}
+}
+
+// cleanupAsync 触发异步清理 (单协程、合并触发)
 func (l *LogRotateX) cleanupAsync() {
 	// 关闭后不再调度
 	if l.closed.Load() {
 		return
 	}
 
-	// 快速路径：无需清理直接返回
+	// 快速路径: 无需清理直接返回
 	if l.MaxFiles <= 0 && l.MaxAge <= 0 && !l.Compress {
 		return
 	}
 
-	// 尝试启动单协程（CAS 0->1）
+	// 尝试启动单协程 (CAS 0->1)
 	if l.cleanupRunning.CompareAndSwap(false, true) {
 		l.wg.Go(func() {
 			l.runCleanupLoop()
@@ -152,11 +218,11 @@ func (l *LogRotateX) cleanupAsync() {
 		return
 	}
 
-	// 已在运行：真正快速失败，只做一次从 false->true 的标记
+	// 已在运行: 真正快速失败，只做一次从 false->true 的标记
 	_ = l.rerunNeeded.CompareAndSwap(false, true)
 }
 
-// 单协程清理循环：每轮都现查现算，错误仅打印
+// 单协程清理循环: 每轮都现查现算，错误仅打印
 func (l *LogRotateX) runCleanupLoop() {
 	defer func() {
 		// panic 保护，防止 wg 和 running 状态失配
@@ -183,7 +249,7 @@ func (l *LogRotateX) runCleanupLoop() {
 				break
 			}
 
-			// 有新的触发需求：轻微退避，避免忙等
+			// 有新的触发需求: 轻微退避，避免忙等
 			time.Sleep(150 * time.Millisecond)
 
 			// 消费掉一次“需要重跑”的信号并继续下一轮
@@ -212,7 +278,7 @@ func (l *LogRotateX) runCleanupLoop() {
 			fmt.Printf("logrotatex: async cleanup error: %v\n", err)
 		}
 
-		// 5) 是否重跑（合并触发：多次触发只续跑一轮）
+		// 5) 是否重跑 (合并触发: 多次触发只续跑一轮)
 		if l.rerunNeeded.Swap(false) {
 			continue
 		}
@@ -220,7 +286,55 @@ func (l *LogRotateX) runCleanupLoop() {
 	}
 }
 
+// processLogFile 处理单个日志文件，提取为通用逻辑
+//
+// 参数:
+//   - f: 文件条目
+//   - cfg: 扫描配置
+//
+// 返回值:
+//   - logInfo: 日志文件信息 (如果有效)
+//   - bool: 是否有效
+func (l *LogRotateX) processLogFile(f os.DirEntry, cfg scanConfig) (logInfo, bool) {
+	fileName := f.Name()
+
+	// 快速前缀检查
+	if cfg.prefix != "" && !strings.HasPrefix(fileName, cfg.prefix) {
+		return logInfo{}, false
+	}
+
+	// 确定文件类型和扩展名
+	var targetExt string
+	if strings.HasSuffix(fileName, cfg.compressedExt) {
+		targetExt = cfg.compressedExt
+	} else if strings.HasSuffix(fileName, cfg.ext) {
+		targetExt = cfg.ext
+	} else {
+		return logInfo{}, false
+	}
+
+	// 解析时间戳
+	timestamp, parseErr := l.fastTimeFromName(fileName, cfg.prefix, targetExt)
+	if parseErr != nil {
+		return logInfo{}, false
+	}
+
+	// 检查时间戳重复 (如果配置了 timestampSet)
+	if cfg.timestampSet != nil && cfg.timestampSet[timestamp] {
+		return logInfo{}, false
+	}
+
+	// 获取文件信息
+	info, err := f.Info()
+	if err != nil {
+		return logInfo{}, false
+	}
+
+	return logInfo{timestamp, info}, true
+}
+
 // oldLogFiles 返回当前目录中的所有备份日志文件，按时间戳排序。
+// 支持日期目录模式，单线程扫描所有目录。
 //
 // 返回值:
 //   - []logInfo: 备份日志文件列表
@@ -237,7 +351,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 		return nil, nil
 	}
 
-	// 获取日志文件的前缀和扩展名（只计算一次）
+	// 获取日志文件的前缀和扩展名 (只计算一次)
 	prefix, ext := l.prefixAndExt()
 	currentFileName := filepath.Base(l.filename())
 	compressedExt := ext + compressSuffix
@@ -251,65 +365,86 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	logFiles := make([]logInfo, 0, estimatedCapacity)
 	timestampSet := make(map[time.Time]bool, estimatedCapacity)
 
-	// 单次扫描: O(n)时间复杂度
-	for _, f := range files {
-		// 快速过滤：跳过目录和当前日志文件
-		if f.IsDir() || f.Name() == currentFileName {
-			continue
-		}
-
-		fileName := f.Name()
-
-		// 快速前缀检查
-		if prefix != "" && !strings.HasPrefix(fileName, prefix) {
-			continue
-		}
-
-		// 确定文件类型和扩展名
-		var targetExt string
-
-		if strings.HasSuffix(fileName, compressedExt) {
-			targetExt = compressedExt
-		} else if strings.HasSuffix(fileName, ext) {
-			targetExt = ext
-		} else {
-			continue // 不匹配任何扩展名，跳过
-		}
-
-		// 解析时间戳（优化版本）
-		timestamp, parseErr := l.fastTimeFromName(fileName, prefix, targetExt)
-		if parseErr != nil {
-			continue
-		}
-
-		// 检查时间戳重复（防止重复处理同一时间戳的文件）
-		if timestampSet[timestamp] {
-			continue
-		}
-
-		// 获取文件信息（延迟到确认需要时）
-		info, err := f.Info()
-		if err != nil {
-			continue
-		}
-
-		// 添加到结果集
-		logFiles = append(logFiles, logInfo{timestamp, info})
-		timestampSet[timestamp] = true
+	// 创建扫描配置
+	cfg := scanConfig{
+		prefix:        prefix,
+		ext:           ext,
+		compressedExt: compressedExt,
+		timestampSet:  timestampSet,
 	}
 
-	// 按时间戳排序（从新到旧）
+	// 扫描根目录和日期目录
+	for _, f := range files {
+		// 跳过当前日志文件
+		if f.Name() == currentFileName {
+			continue
+		}
+
+		if f.IsDir() {
+			// 扫描日期目录
+			dirPath := filepath.Join(l.dir(), f.Name())
+			dirFiles, err := l.scanDateDir(dirPath, cfg)
+			if err != nil {
+				continue // 跳过无法读取的目录
+			}
+			// 合并结果
+			for _, df := range dirFiles {
+				logFiles = append(logFiles, df)
+				timestampSet[df.timestamp] = true
+			}
+		} else {
+			// 处理根目录文件 (支持混合模式)
+			if logInfo, ok := l.processLogFile(f, cfg); ok {
+				logFiles = append(logFiles, logInfo)
+				timestampSet[logInfo.timestamp] = true
+			}
+		}
+	}
+
+	// 按时间戳排序 (从新到旧)
 	sort.Sort(byFormatTime(logFiles))
+
+	return logFiles, nil
+}
+
+// scanDateDir 扫描单个日期目录，返回其中的日志文件
+//
+// 参数:
+//   - dirPath: 日期目录路径
+//   - cfg: 扫描配置
+//
+// 返回值:
+//   - []logInfo: 日志文件列表
+//   - error: 读取目录失败时返回错误
+func (l *LogRotateX) scanDateDir(dirPath string, cfg scanConfig) ([]logInfo, error) {
+	files, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var logFiles []logInfo
+
+	for _, f := range files {
+		// 跳过子目录 (只处理一层)
+		if f.IsDir() {
+			continue
+		}
+
+		// 处理文件 (processLogFile 内部会检查时间戳重复)
+		if logInfo, ok := l.processLogFile(f, cfg); ok {
+			logFiles = append(logFiles, logInfo)
+		}
+	}
 
 	return logFiles, nil
 }
 
 // getFilesToRemove 根据配置的清理规则，返回需要删除的文件列表
 //
-// 支持三种清理场景：
-//  1. 数量+天数组合（MaxBackups>0, MaxAge>0）
-//  2. 只按数量保留（MaxBackups>0, MaxAge=0）
-//  3. 只按天数保留（MaxBackups=0, MaxAge>0）
+// 支持三种清理场景:
+//  1. 数量+天数组合 (MaxBackups>0, MaxAge>0)
+//  2. 只按数量保留 (MaxBackups>0, MaxAge=0)
+//  3. 只按天数保留 (MaxBackups=0, MaxAge>0)
 //
 // 参数:
 //   - files: 所有日志文件信息列表
@@ -317,12 +452,12 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 // 返回值:
 //   - []logInfo: 需要删除的日志文件列表
 func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
-	// 快速失败：没有文件
+	// 快速失败: 没有文件
 	if len(files) == 0 {
 		return nil
 	}
 
-	// 快速失败：没有设置任何清理规则
+	// 快速失败: 没有设置任何清理规则
 	hasBackupRule := l.MaxFiles > 0
 	hasAgeRule := l.MaxAge > 0
 	if !hasBackupRule && !hasAgeRule {
@@ -361,7 +496,7 @@ func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
 	return nil
 }
 
-// keepByDaysAndCount 实现场景1的逻辑：先按天数筛选，再每天保留指定数量
+// keepByDaysAndCount 实现场景1的逻辑: 先按天数筛选，再每天保留指定数量
 //
 // 参数:
 //   - files: 所有日志文件信息列表
@@ -384,7 +519,7 @@ func (l *LogRotateX) keepByDaysAndCount(files []logInfo, maxAge, maxBackups int)
 
 	var keep []logInfo
 	for _, dayFiles := range dayGroups {
-		// 对每天的文件按时间排序（从新到旧）
+		// 对每天的文件按时间排序 (从新到旧)
 		sort.Slice(dayFiles, func(i, j int) bool {
 			return dayFiles[i].timestamp.After(dayFiles[j].timestamp)
 		})
@@ -432,7 +567,7 @@ func (l *LogRotateX) calculateRemoveList(allFiles, keepFiles []logInfo) []logInf
 	return remove
 }
 
-// fastTimeFromName 从文件名中快速解析时间戳（纯数字格式优化版）。
+// fastTimeFromName 从文件名中快速解析时间戳 (纯数字格式优化版) 。
 func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, error) {
 	// 计算时间戳的起始和结束位置
 	var startPos, endPos int
@@ -460,7 +595,7 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 	// 提取时间戳字符串
 	timestampStr := filename[startPos:endPos]
 
-	// 快速验证：确保都是数字
+	// 快速验证: 确保都是数字
 	if !isAllDigits(timestampStr) {
 		return time.Time{}, fmt.Errorf("logrotatex: timestamp contains non-digit characters: %s", timestampStr)
 	}

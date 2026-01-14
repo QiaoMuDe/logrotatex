@@ -220,7 +220,16 @@ func (l *LogRotateX) openNew() error {
 		mode = info.Mode()
 
 		// 将现有的日志文件重命名为备份文件
-		newname := genTimeName(name, l.LocalTime)
+		newname := genTimeName(name, l.LocalTime, l.DateDirLayout)
+
+		// 如果启用日期目录，确保目标日期目录存在
+		if l.DateDirLayout {
+			dateDir := filepath.Dir(newname)
+			if err := os.MkdirAll(dateDir, defaultDirPerm); err != nil {
+				return fmt.Errorf("logrotatex: unable to create date directory: %w", err)
+			}
+		}
+
 		if renameErr := os.Rename(name, newname); renameErr != nil {
 			return fmt.Errorf("logrotatex: unable to rename log file: %w", renameErr)
 		}
@@ -261,10 +270,11 @@ func (l *LogRotateX) openNew() error {
 // 参数:
 //   - name: 原始文件名
 //   - local: 是否使用本地时间, false 使用 UTC 时间
+//   - dateDirLayout: 是否启用日期目录布局
 //
 // 返回值:
 //   - string: 带时间戳的备份文件名
-func genTimeName(name string, local bool) string {
+func genTimeName(name string, local bool, dateDirLayout bool) string {
 	// 获取文件所在的目录
 	dir := filepath.Dir(name)
 
@@ -295,6 +305,12 @@ func genTimeName(name string, local bool) string {
 	// 格式化时间戳
 	timestamp := t.Format(backupTimeFormat)
 
+	// 如果启用日期目录，生成日期目录名
+	if dateDirLayout {
+		dateDir := t.Format("2006-01-02")
+		return filepath.Join(dir, dateDir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
+	}
+
 	// 生成新的文件名
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
@@ -324,9 +340,9 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 		return fmt.Errorf("logrotatex: error getting log file info: %w", err)
 	}
 
-	// 检查写入操作是否会超出最大文件大小限制
-	if info.Size()+int64(writeLen) > l.max() {
-		// 如果会超出限制, 则执行日志文件的轮转操作
+	// 检查写入操作是否会达到或超出最大文件大小限制
+	if info.Size()+int64(writeLen) >= l.max() {
+		// 如果会达到或超出限制, 则执行日志文件的轮转操作
 		return l.rotate()
 	}
 

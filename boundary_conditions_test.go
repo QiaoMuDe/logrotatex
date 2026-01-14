@@ -132,8 +132,8 @@ func TestBoundaryConditions(t *testing.T) {
 
 		backupCount := 0
 		for _, file := range files {
-			// 检查是否是备份文件（包含时间戳格式的文件名）
-			if strings.Contains(file.Name(), "test_") && strings.Contains(file.Name(), "2025") {
+			// 检查是否是备份文件（格式为 test_timestamp.log）
+			if strings.HasPrefix(file.Name(), "test_") && strings.HasSuffix(file.Name(), ".log") {
 				backupCount++
 			}
 		}
