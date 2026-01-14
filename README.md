@@ -28,7 +28,8 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 
 ### 🔄 智能轮转管理
 - 📁 **自动日志轮转** - 基于文件大小智能轮转
-- 🗂️ **多重清理策略** - 按数量和时间双重管理
+- � **按天轮转** - 支持每天自动轮转，跨天时触发
+- �️ **多重清理策略** - 按数量和时间双重管理
 - 🗜️ **ZIP 压缩支持** - 自动压缩节省存储空间
 - ⏱️ **灵活时间格式** - 支持本地时间/UTC时间
 
@@ -65,6 +66,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 | 🔌 **无缝集成** | 实现 `io.Writer` 接口 | 兼容所有主流日志库 |
 | ⚡ **高性能** | 优化的文件操作算法 | 支持高频日志写入场景 |
 | 🚀 **缓冲写入** | 带缓冲批量写入器 + 定时刷新器 | 显著提升写入性能，减少系统调用，确保数据及时写入 |
+| 📅 **按天轮转** | 支持每天自动轮转 | 满足日志按天归档需求 |
 | 🛡️ **企业级安全** | 多层安全防护机制 | 防止安全漏洞和攻击 |
 | 🔧 **灵活配置** | 丰富的配置选项 | 适应各种使用场景 |
 | 📈 **生产就绪** | 经过充分测试验证 | 可直接用于生产环境 |
@@ -178,6 +180,46 @@ func main() {
     log.Println("这条日志会通过Write方法写入")
 }
 ```
+
+</details>
+
+<details>
+<summary><b>📅 按天轮转配置（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 使用构造函数创建
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    defer logger.Close()
+    
+    // 启用按天轮转
+    logger.RotateByDay = true  // 每天自动轮转一次
+    
+    // 可以同时设置按大小轮转
+    logger.MaxSize = 100  // 100MB - 文件大小达到限制时也会轮转
+    logger.MaxFiles = 10  // 保留10个历史文件
+    logger.MaxAge = 30     // 保留30天
+    
+    // 设置为标准日志输出
+    log.SetOutput(logger)
+    
+    // 日志会每天自动轮转，跨天时触发
+    log.Println("这条日志会在跨天时自动轮转")
+}
+```
+
+**按天轮转特性：**
+- **自动轮转**：每天自动轮转一次，跨天时触发
+- **双重触发**：可以同时设置按大小轮转，满足任一条件即轮转
+- **时间控制**：支持 `LocalTime` 配置，使用本地时间或 UTC 时间
+- **灵活组合**：可与 `DateDirLayout` 组合使用，按日期目录存放备份文件
 
 </details>
 
@@ -631,6 +673,26 @@ logger.MaxFiles = 5     // 5个历史文件 - 控制存储使用
 logger.MaxAge = 14        // 14天 - 配合日志收集系统
 logger.Compress = true    // 启用压缩 - 减少网络传输
 ```
+
+</details>
+
+<details>
+<summary><b>📅 按天归档环境</b></summary>
+
+```go
+logger := logrotatex.NewLogRotateX("logs/daily.log")
+logger.RotateByDay = true  // 启用按天轮转 - 每天自动归档
+logger.MaxSize = 100      // 100MB - 文件大小达到限制时也会轮转
+logger.MaxFiles = 30    // 30个历史文件 - 保留30天的日志
+logger.MaxAge = 90        // 90天 - 长期保留
+logger.Compress = true    // 启用压缩 - 节省存储空间
+logger.DateDirLayout = true  // 启用日期目录 - 按日期目录存放备份文件
+```
+
+**适用场景：**
+- 需要按天归档日志的应用
+- 审计要求按天查看日志
+- 需要长期保留日志的场景
 
 </details>
 

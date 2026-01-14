@@ -24,6 +24,7 @@ var (
 // BufferedWriter 带缓冲批量写入器
 // 可以包装任何写入器和关闭器, 提供批量写入功能
 type BufferedWriter struct {
+	// 内部状态
 	wc          io.WriteCloser // 底层写入+关闭器 (必需)
 	buffer      *bytes.Buffer  // 缓冲区
 	mutex       sync.RWMutex   // 保护缓冲区和状态 (读写锁)
@@ -35,9 +36,10 @@ type BufferedWriter struct {
 	flushInterval time.Duration // 刷新间隔, 默认1秒 (0 表示禁用刷新间隔触发条件)
 
 	// 状态跟踪
-	writeCount int         // 当前写入次数
-	lastFlush  time.Time   // 上次刷新时间
-	closed     atomic.Bool // 是否已关闭
+	writeCount  int         // 当前写入次数
+	lastFlush   time.Time   // 上次刷新时间
+	closed      atomic.Bool // 是否已关闭
+	initialized atomic.Bool // 是否已初始化
 }
 
 // BufCfg 缓冲写入器配置
@@ -89,6 +91,80 @@ func NewStdoutBW(config *BufCfg) *BufferedWriter {
 // NewBW 是 NewBufferedWriter 的简写形式, 用于创建新的 BufferedWriter 实例。
 var NewBW = NewBufferedWriter
 
+// initDefaults 初始化 BufferedWriter 实例的默认值。
+// 该方法确保无论是通过构造函数创建还是直接通过结构体字面量创建，
+// 都能获得一致的初始化行为。
+// 注意：该方法只会执行一次，避免重复初始化。
+//
+// 返回值:
+//   - error: 初始化失败时返回错误，否则返回 nil
+func (bw *BufferedWriter) initDefaults() error {
+	// 如果已经初始化过，直接返回
+	if bw.initialized.Load() {
+		return nil
+	}
+
+	// 校验参数: WriteCloser 不能为空
+	if bw.wc == nil {
+		return errors.New("logrotatex: WriteCloser cannot be nil")
+	}
+
+	// 严格校验: 非法值直接返回错误
+	if bw.maxBufferSize < 0 {
+		return errors.New("logrotatex: MaxBufferSize must be >= 0")
+	}
+	if bw.maxWriteCount < 0 {
+		return errors.New("logrotatex: MaxWriteCount must be >= 0")
+	}
+	if bw.flushInterval < 0 {
+		return errors.New("logrotatex: FlushInterval must be >= 0")
+	}
+
+	// 初始化缓冲区（如果未初始化）
+	if bw.buffer == nil {
+		bw.buffer = bytes.NewBuffer(make([]byte, 0, bw.maxBufferSize))
+	}
+
+	// 初始化读写锁（如果未初始化）
+	bw.mutex = sync.RWMutex{}
+
+	// 初始化写入计数（如果未初始化）
+	if bw.writeCount == 0 {
+		bw.writeCount = 0
+	}
+
+	// 初始化刷新时间（如果未初始化）
+	if bw.lastFlush.IsZero() {
+		bw.lastFlush = time.Now()
+	}
+
+	// 显式设置原子布尔值为 false
+	bw.closed.Store(false)
+
+	// 启动刷新定时器（如果刷新间隔不为0且未启动）
+	if bw.flushInterval > 0 && bw.flushTicker == nil {
+		bw.flushTicker = time.NewTicker(bw.flushInterval)
+		go func() {
+			// 防止定时器协程panic导致程序崩溃
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("logrotatex: BufferedWriter flush ticker panic: %v stack: %s\n", r, debug.Stack())
+				}
+			}()
+
+			for range bw.flushTicker.C {
+				// 忽略刷新错误，避免定时器因错误而停止
+				_ = bw.Flush()
+			}
+		}()
+	}
+
+	// 标记为已初始化
+	bw.initialized.Store(true)
+
+	return nil
+}
+
 // NewBufferedWriter 创建新的带缓冲批量写入器
 //
 // 参数:
@@ -98,23 +174,8 @@ var NewBW = NewBufferedWriter
 // 返回值:
 //   - *BufferedWriter: 新的带缓冲批量写入器实例
 func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
-	// 校验参数: WriteCloser 不能为空
-	if wc == nil {
-		panic("logrotatex: WriteCloser cannot be nil")
-	}
 	if config == nil {
 		config = DefBufCfg() // 配置如果为空, 使用默认值
-	}
-
-	// 严格校验: 非法值直接 panic, 快速失败
-	if config.MaxBufferSize < 0 {
-		panic("logrotatex: MaxBufferSize must be >= 0")
-	}
-	if config.MaxWriteCount < 0 {
-		panic("logrotatex: MaxWriteCount must be >= 0")
-	}
-	if config.FlushInterval < 0 {
-		panic("logrotatex: FlushInterval must be >= 0")
 	}
 
 	bw := &BufferedWriter{
@@ -130,22 +191,9 @@ func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
 	}
 	bw.closed.Store(false) // 显式设置为未关闭状态
 
-	// 启动刷新定时器 (如果刷新间隔不为0)
-	if bw.flushInterval > 0 {
-		bw.flushTicker = time.NewTicker(bw.flushInterval)
-		go func() {
-			// 防止定时器协程panic导致程序崩溃
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Printf("logrotatex: BufferedWriter flush ticker panic: %v stack: %s\n", r, debug.Stack())
-				}
-			}()
-
-			for range bw.flushTicker.C {
-				// 忽略刷新错误，避免定时器因错误而停止
-				_ = bw.Flush()
-			}
-		}()
+	// 初始化默认值
+	if err := bw.initDefaults(); err != nil {
+		panic(err)
 	}
 
 	return bw
@@ -163,6 +211,11 @@ func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
 func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
+
+	// 初始化默认值（确保直接通过结构体字面量创建的实例也能正确初始化）
+	if err := bw.initDefaults(); err != nil {
+		return 0, err
+	}
 
 	if bw.closed.Load() {
 		return 0, errors.New("logrotatex: write on closed")

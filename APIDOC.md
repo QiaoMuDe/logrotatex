@@ -181,16 +181,36 @@ func (bw *BufferedWriter) WriteCount() int
 
 ```go
 type LogRotateX struct {
-	LogFilePath string `json:"logfilepath" yaml:"logfilepath"` // 日志文件路径
-	Async       bool   `json:"async" yaml:"async"`             // 是否启用异步清理
-	MaxSize     int    `json:"maxsize" yaml:"maxsize"`         // 单个日志文件最大大小（MB）
-	MaxAge      int    `json:"maxage" yaml:"maxage"`           // 保留日志文件天数
-	MaxFiles    int    `json:"maxfiles" yaml:"maxfiles"`       // 最大保留历史日志文件数量
-	LocalTime   bool   `json:"localtime" yaml:"localtime"`     // 是否使用本地时间记录轮转时间
-	Compress    bool   `json:"compress" yaml:"compress"`       // 轮转后日志文件是否压缩
+	LogFilePath   string `json:"logfilepath" yaml:"logfilepath"`   // 日志文件路径
+	Async         bool   `json:"async" yaml:"async"`             // 是否启用异步清理
+	MaxSize       int    `json:"maxsize" yaml:"maxsize"`         // 单个日志文件最大大小（MB）
+	MaxAge        int    `json:"maxage" yaml:"maxage"`           // 保留日志文件天数
+	MaxFiles      int    `json:"maxfiles" yaml:"maxfiles"`       // 最大保留历史日志文件数量
+	LocalTime     bool   `json:"localtime" yaml:"localtime"`     // 是否使用本地时间记录轮转时间
+	Compress      bool   `json:"compress" yaml:"compress"`       // 轮转后日志文件是否压缩
+	DateDirLayout bool   `json:"datedirlayout" yaml:"datedirlayout"` // 是否启用按日期目录存放轮转后的日志
+	RotateByDay   bool   `json:"rotatebyday" yaml:"rotatebyday"`   // 是否启用按天轮转
 	// Has unexported fields.
 }
 ```
+
+**字段说明**：
+
+- `LogFilePath`：日志文件路径。如果为空，则使用 `os.TempDir()` 下的 `<程序名>_logrotatex.log`
+- `Async`：是否启用异步清理。true 表示异步清理，false 表示同步清理（默认）
+- `MaxSize`：单个日志文件最大大小（MB）。超过此大小的日志文件将被轮转（默认 10MB）
+- `MaxAge`：保留日志文件天数。超过此天数的文件将被删除（默认 0，表示不删除）
+- `MaxFiles`：最大保留历史日志文件数量。超过此数量的旧文件将被删除（默认 0，表示不限制）
+- `LocalTime`：是否使用本地时间记录轮转时间。false 使用 UTC 时间（默认 true）
+- `Compress`：轮转后日志文件是否压缩。true 表示压缩，false 表示不压缩（默认 false）
+- `DateDirLayout`：是否启用按日期目录存放轮转后的日志。true 表示按 `YYYY-MM-DD/` 目录存放，false 表示存放在当前目录（默认 false）
+- `RotateByDay`：是否启用按天轮转。true 表示每天自动轮转一次（跨天时触发），false 表示只按文件大小轮转（默认 false）
+
+**按天轮转特性**：
+- **自动轮转**：每天自动轮转一次，跨天时触发
+- **双重触发**：可以同时设置按大小轮转，满足任一条件即轮转
+- **时间控制**：支持 `LocalTime` 配置，使用本地时间或 UTC 时间
+- **灵活组合**：可与 `DateDirLayout` 组合使用，按日期目录存放备份文件
 
 #### NewLogRotateX
 
@@ -202,7 +222,6 @@ func NewLogRotateX(logFilePath string) *LogRotateX
 
 - 参数：`logFilePath` - 日志文件路径
 - 返回值：配置好的 `LogRotateX` 实例
-- 默认配置：`MaxSize=10MB`，`MaxAge=0`，`MaxFiles=0`，`LocalTime=true`，`Compress=false`
 
 #### Close
 

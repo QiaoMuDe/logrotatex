@@ -373,3 +373,33 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 
 	return nil
 }
+
+// shouldRotateByDay 检查是否需要按天轮转
+//
+// 返回值:
+//   - bool: true 表示需要轮转, false 表示不需要轮转
+func (l *LogRotateX) shouldRotateByDay() bool {
+	// 获取当前时间（考虑 LocalTime 配置）
+	now := currentTime()
+	if !l.LocalTime {
+		now = now.UTC()
+	}
+
+	// 如果是首次运行，记录当前日期但不轮转
+	if l.lastRotationDate.IsZero() {
+		l.lastRotationDate = now
+		return false
+	}
+
+	// 检查是否跨天（只比较日期部分）
+	currentDate := now.Format("2006-01-02")
+	lastDate := l.lastRotationDate.Format("2006-01-02")
+
+	if currentDate != lastDate {
+		// 跨天了，更新上次轮转日期
+		l.lastRotationDate = now
+		return true
+	}
+
+	return false
+}
