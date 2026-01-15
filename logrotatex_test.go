@@ -503,7 +503,7 @@ func TestCompressOnResume(t *testing.T) {
 	time.Sleep(2 * time.Second) // 增加延迟，确保压缩操作完成
 
 	// 写入操作应该已经启动了压缩 - 现在应该存在一个压缩版本的日志文件，并且原始文件应该已被删除。
-	compressedFile := filepath.Join(filepath.Dir(filename2), strings.TrimSuffix(filepath.Base(filename2), filepath.Ext(filename2))) + compressSuffix
+	compressedFile := filepath.Join(filepath.Dir(filename2), strings.TrimSuffix(filepath.Base(filename2), filepath.Ext(filename2))) + l.CompressType.String()
 	// 验证压缩文件是否存在 (使用轮询)
 	t.Logf("尝试查找压缩文件: %s", compressedFile)
 	var foundCompressed bool

@@ -30,7 +30,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 - 📁 **自动日志轮转** - 基于文件大小智能轮转
 - � **按天轮转** - 支持每天自动轮转，跨天时触发
 - �️ **多重清理策略** - 按数量和时间双重管理
-- 🗜️ **ZIP 压缩支持** - 自动压缩节省存储空间
+- 🗜️ **多格式压缩支持** - 支持8种压缩格式（zip、tar、tgz、tar.gz、gz、bz2、bzip2、zlib）节省存储空间
 - ⏱️ **灵活时间格式** - 支持本地时间/UTC时间
 
 </td>
@@ -67,7 +67,8 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 | ⚡ **高性能** | 优化的文件操作算法 | 支持高频日志写入场景 |
 | 🚀 **缓冲写入** | 带缓冲批量写入器 + 定时刷新器 | 显著提升写入性能，减少系统调用，确保数据及时写入 |
 | 📅 **按天轮转** | 支持每天自动轮转 | 满足日志按天归档需求 |
-| 🛡️ **企业级安全** | 多层安全防护机制 | 防止安全漏洞和攻击 |
+| �️ **多格式压缩** | 支持8种压缩格式（zip、tar、tgz、tar.gz、gz、bz2、bzip2、zlib） | 灵活选择压缩方式，平衡压缩率和性能 |
+| �️ **企业级安全** | 多层安全防护机制 | 防止安全漏洞和攻击 |
 | 🔧 **灵活配置** | 丰富的配置选项 | 适应各种使用场景 |
 | 📈 **生产就绪** | 经过充分测试验证 | 可直接用于生产环境 |
 
@@ -240,6 +241,7 @@ func main() {
         MaxAge:     14,     // 保留14天
         LocalTime:  true,   // 使用本地时间
         Compress:   true,   // 启用压缩
+        CompressType: comprx.CompressTypeZip, // 压缩类型，默认为zip格式
         FilePerm:   0644,   // 自定义文件权限
     }
     defer logger.Close()
@@ -588,6 +590,57 @@ func main() {
 ### 🔧 高级用法示例
 
 <details>
+<summary><b>🗜️ 压缩类型配置（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "gitee.com/MM-Q/logrotatex"
+    "gitee.com/MM-Q/comprx"
+)
+
+func main() {
+    // 创建日志轮转器
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    defer logger.Close()
+    
+    // 启用压缩
+    logger.Compress = true
+    
+    // 设置压缩类型（默认为 zip）
+    logger.CompressType = comprx.CompressTypeZip
+    
+    // 支持的压缩格式：
+    // - comprx.CompressTypeZip: zip 压缩格式（默认）
+    // - comprx.CompressTypeTar: tar 压缩格式
+    // - comprx.CompressTypeTgz: tgz 压缩格式
+    // - comprx.CompressTypeTarGz: tar.gz 压缩格式
+    // - comprx.CompressTypeGz: gz 压缩格式
+    // - comprx.CompressTypeBz2: bz2 压缩格式
+    // - comprx.CompressTypeBzip2: bzip2 压缩格式
+    // - comprx.CompressTypeZlib: zlib 压缩格式
+    
+    // 设置为标准日志输出
+    log.SetOutput(logger)
+    
+    // 写入日志，轮转后会使用指定的压缩格式
+    log.Println("这条日志会在轮转后使用zip格式压缩")
+}
+```
+
+**压缩类型说明：**
+- **zip格式**：兼容性好，支持多文件，适合大多数场景
+- **tar格式**：不压缩，仅打包，适合需要快速访问的场景
+- **tgz/tar.gz格式**：压缩率高，适合长期存储
+- **gz格式**：单文件压缩，简单高效
+- **bz2/bzip2格式**：压缩率更高，但速度较慢
+- **zlib格式**：内存友好，适合流式处理
+
+</details>
+
+<details>
 <summary><b>🎛️ 运行时控制（点击展开）</b></summary>
 
 ```go
@@ -876,9 +929,38 @@ lsof logs/app.log
 ```go
 // 启用详细错误日志
 logger.Compress = true
+logger.CompressType = comprx.CompressTypeZip // 设置压缩类型
 if err := logger.Rotate(); err != nil {
     log.Printf("轮转失败: %v", err)
 }
+```
+
+</details>
+
+<details>
+<summary><b>Q: 如何选择合适的压缩类型？</b></summary>
+
+**A: 根据场景选择压缩类型：**
+
+- **zip格式**：兼容性好，支持多文件，适合大多数场景
+- **tar格式**：不压缩，仅打包，适合需要快速访问的场景
+- **tgz/tar.gz格式**：压缩率高，适合长期存储
+- **gz格式**：单文件压缩，简单高效
+- **bz2/bzip2格式**：压缩率更高，但速度较慢
+- **zlib格式**：内存友好，适合流式处理
+
+```go
+// 高性能场景：使用gz格式
+logger.Compress = true
+logger.CompressType = comprx.CompressTypeGz
+
+// 高压缩率场景：使用bz2格式
+logger.Compress = true
+logger.CompressType = comprx.CompressTypeBz2
+
+// 兼容性优先：使用zip格式（默认）
+logger.Compress = true
+logger.CompressType = comprx.CompressTypeZip // 可省略，默认值
 ```
 
 </details>
@@ -971,7 +1053,7 @@ git push origin feature/your-feature-name
 - 🔧 **构造函数支持** - 添加了 `NewLogRotateX()` 构造函数
 - 🛡️ **增强安全特性** - 内置路径安全验证机制
 - 📊 **性能优化** - 优化文件扫描算法和内存使用
-- 🗜️ **ZIP 压缩** - 改进压缩格式，提供更好兼容性
+- 🗜️ **多格式压缩** - 支持8种压缩格式（zip、tar、tgz、tar.gz、gz、bz2、bzip2、zlib），提供灵活的压缩选择
 - 🔒 **权限控制** - 增加文件权限配置选项
 - 🚀 **缓冲写入器** - 新增高性能批量写入功能，三重触发条件智能刷新
 - 🌐 **本地化支持** - 提供中文文档和本地化体验

@@ -21,9 +21,6 @@ const (
 	// 纯数字时间戳长度: "20060102150405" = 14字符
 	expectedTimestampLen = 14
 
-	// compressSuffix 是压缩文件的后缀, 用于标识已压缩的日志文件。
-	compressSuffix = ".zip"
-
 	// defaultMaxSize 是日志文件的最大默认大小(单位: MB), 在未明确设置时使用此值。
 	defaultMaxSize = 10
 

@@ -56,7 +56,7 @@ func (l *LogRotateX) cleanupSync() error {
 	if l.Compress {
 		for _, f := range files {
 			// 如果文件未被压缩，则加入压缩列表
-			if !strings.HasSuffix(f.Name(), compressSuffix) {
+			if !strings.HasSuffix(f.Name(), l.CompressType.String()) {
 				compress = append(compress, f)
 			}
 		}
@@ -101,9 +101,10 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 		for _, f := range compress {
 			// 获取文件的完整路径
 			filePath := l.getFilePath(f)
-			// 压缩文件名生成
+			// 基础文件名（不包含扩展名）
 			baseName := strings.TrimSuffix(f.Name(), filepath.Ext(f.Name()))
-			compressPath := filepath.Join(filepath.Dir(filePath), baseName+compressSuffix)
+			// 压缩文件路径, 格式: 父目录/基础文件名.压缩类型
+			compressPath := filepath.Join(filepath.Dir(filePath), baseName+l.CompressType.String())
 
 			// 创建压缩配置
 			opts := comprx.Options{
@@ -267,7 +268,7 @@ func (l *LogRotateX) runCleanupLoop() {
 		var compress []logInfo
 		if l.Compress && files != nil {
 			for _, f := range files {
-				if !strings.HasSuffix(f.Name(), compressSuffix) {
+				if !strings.HasSuffix(f.Name(), l.CompressType.String()) {
 					compress = append(compress, f)
 				}
 			}
@@ -354,7 +355,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	// 获取日志文件的前缀和扩展名 (只计算一次)
 	prefix, ext := l.prefixAndExt()
 	currentFileName := filepath.Base(l.filename())
-	compressedExt := ext + compressSuffix
+	compressedExt := ext + l.CompressType.String()
 
 	// 预估容量，避免频繁扩容
 	estimatedCapacity := len(files) / 4

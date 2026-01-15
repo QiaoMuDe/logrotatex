@@ -142,7 +142,7 @@ func TestMaxBackups(t *testing.T) {
 	fourthFilename := backupFile(dir)
 
 	// 创建一个正在或已被压缩的日志文件，该文件在压缩和未压缩状态都存在时不应被计数
-	compLogFile := fourthFilename + compressSuffix
+	compLogFile := fourthFilename + l.CompressType.String()
 	// 将数据写入该压缩日志文件，文件权限设置为 0644
 	err = os.WriteFile(compLogFile, []byte("compress"), 0644)
 	// 验证写入操作是否成功
@@ -160,7 +160,7 @@ func TestMaxBackups(t *testing.T) {
 	// 验证第四个备份文件的内容是否为上一次写入的数据
 	existsWithContent(fourthFilename, b3, t)
 	// 验证压缩日志文件的内容是否正确
-	existsWithContent(fourthFilename+compressSuffix, []byte("compress"), t)
+	existsWithContent(fourthFilename+l.CompressType.String(), []byte("compress"), t)
 
 	// 等待一段时间，因为文件删除操作在不同的 goroutine 中执行
 	<-time.After(time.Millisecond * 10)
@@ -223,10 +223,20 @@ func TestCleanupExistingBackups(t *testing.T) {
 	// 模拟时间前进
 	newFakeTime()
 
+	// 现在创建一个包含一些数据的主日志文件
+	filename := logFile(dir)
+
+	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小和最大备份数
+	l := &LogRotateX{
+		LogFilePath: filename,
+		MaxSize:     10,
+		MaxFiles:    1,
+	}
+
 	// 获取第二个备份文件路径
 	backup = backupFile(dir)
 	// 将数据写入第二个备份文件的压缩版本
-	err = os.WriteFile(backup+compressSuffix, data, 0644)
+	err = os.WriteFile(backup+l.CompressType.String(), data, 0644)
 	// 验证写入操作是否成功
 	isNil(err, t)
 
@@ -240,19 +250,11 @@ func TestCleanupExistingBackups(t *testing.T) {
 	// 验证写入操作是否成功
 	isNil(err, t)
 
-	// 现在创建一个包含一些数据的主日志文件
-	filename := logFile(dir)
 	// 将数据写入主日志文件
 	err = os.WriteFile(filename, data, 0644)
 	// 验证写入操作是否成功
 	isNil(err, t)
 
-	// 创建一个 LogRotateX 实例，指定日志文件路径、最大文件大小和最大备份数
-	l := &LogRotateX{
-		LogFilePath: filename,
-		MaxSize:     10,
-		MaxFiles:    1,
-	}
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
 

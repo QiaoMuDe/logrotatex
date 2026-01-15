@@ -181,15 +181,16 @@ func (bw *BufferedWriter) WriteCount() int
 
 ```go
 type LogRotateX struct {
-	LogFilePath   string `json:"logfilepath" yaml:"logfilepath"`   // 日志文件路径
-	Async         bool   `json:"async" yaml:"async"`             // 是否启用异步清理
-	MaxSize       int    `json:"maxsize" yaml:"maxsize"`         // 单个日志文件最大大小（MB）
-	MaxAge        int    `json:"maxage" yaml:"maxage"`           // 保留日志文件天数
-	MaxFiles      int    `json:"maxfiles" yaml:"maxfiles"`       // 最大保留历史日志文件数量
-	LocalTime     bool   `json:"localtime" yaml:"localtime"`     // 是否使用本地时间记录轮转时间
-	Compress      bool   `json:"compress" yaml:"compress"`       // 轮转后日志文件是否压缩
-	DateDirLayout bool   `json:"datedirlayout" yaml:"datedirlayout"` // 是否启用按日期目录存放轮转后的日志
-	RotateByDay   bool   `json:"rotatebyday" yaml:"rotatebyday"`   // 是否启用按天轮转
+	LogFilePath   string                `json:"logfilepath" yaml:"logfilepath"`   // 日志文件路径
+	Async         bool                  `json:"async" yaml:"async"`             // 是否启用异步清理
+	MaxSize       int                   `json:"maxsize" yaml:"maxsize"`         // 单个日志文件最大大小（MB）
+	MaxAge        int                   `json:"maxage" yaml:"maxage"`           // 保留日志文件天数
+	MaxFiles      int                   `json:"maxfiles" yaml:"maxfiles"`       // 最大保留历史日志文件数量
+	LocalTime     bool                  `json:"localtime" yaml:"localtime"`     // 是否使用本地时间记录轮转时间
+	Compress      bool                  `json:"compress" yaml:"compress"`       // 轮转后日志文件是否压缩
+	DateDirLayout bool                  `json:"datedirlayout" yaml:"datedirlayout"` // 是否启用按日期目录存放轮转后的日志
+	RotateByDay   bool                  `json:"rotatebyday" yaml:"rotatebyday"`   // 是否启用按天轮转
+	CompressType  comprx.CompressType   `json:"compress_type" yaml:"compress_type"` // 压缩类型，默认为zip格式
 	// Has unexported fields.
 }
 ```
@@ -205,6 +206,15 @@ type LogRotateX struct {
 - `Compress`：轮转后日志文件是否压缩。true 表示压缩，false 表示不压缩（默认 false）
 - `DateDirLayout`：是否启用按日期目录存放轮转后的日志。true 表示按 `YYYY-MM-DD/` 目录存放，false 表示存放在当前目录（默认 false）
 - `RotateByDay`：是否启用按天轮转。true 表示每天自动轮转一次（跨天时触发），false 表示只按文件大小轮转（默认 false）
+- `CompressType`：压缩类型，默认为 `comprx.CompressTypeZip`。支持的压缩格式包括：
+  - `comprx.CompressTypeZip`：zip 压缩格式
+  - `comprx.CompressTypeTar`：tar 压缩格式
+  - `comprx.CompressTypeTgz`：tgz 压缩格式
+  - `comprx.CompressTypeTarGz`：tar.gz 压缩格式
+  - `comprx.CompressTypeGz`：gz 压缩格式
+  - `comprx.CompressTypeBz2`：bz2 压缩格式
+  - `comprx.CompressTypeBzip2`：bzip2 压缩格式
+  - `comprx.CompressTypeZlib`：zlib 压缩格式
 
 **按天轮转特性**：
 - **自动轮转**：每天自动轮转一次，跨天时触发

@@ -22,6 +22,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"gitee.com/MM-Q/comprx"
 )
 
 // LogRotateX 是一个 io.WriteCloser, 它写入指定的文件名。
@@ -81,7 +83,7 @@ type LogRotateX struct {
 	// 默认使用 UTC 时间。
 	LocalTime bool `json:"localtime" yaml:"localtime"`
 
-	// Compress 决定轮转后的日志文件是否应使用 zip 进行压缩。
+	// Compress 决定轮转后的日志文件是否进行压缩。
 	// 默认不进行压缩。
 	Compress bool `json:"compress" yaml:"compress"`
 
@@ -94,6 +96,19 @@ type LogRotateX struct {
 	// true: 每天自动轮转一次 (跨天时触发)
 	// false: 只按文件大小轮转 (默认)
 	RotateByDay bool `json:"rotatebyday" yaml:"rotatebyday"`
+
+	// CompressType 压缩类型, 默认为: comprx.CompressTypeZip
+	//
+	// 支持的压缩格式：
+	//   - comprx.CompressTypeZip: zip 压缩格式
+	//   - comprx.CompressTypeTar: tar 压缩格式
+	//   - comprx.CompressTypeTgz: tgz 压缩格式
+	//   - comprx.CompressTypeTarGz: tar.gz 压缩格式
+	//   - comprx.CompressTypeGz: gz 压缩格式
+	//   - comprx.CompressTypeBz2: bz2 压缩格式
+	//   - comprx.CompressTypeBzip2: bzip2 压缩格式
+	//   - comprx.CompressTypeZlib: zlib 压缩格式
+	CompressType comprx.CompressType `json:"compress_type" yaml:"compress_type"`
 
 	// 内部状态
 	filePerm         os.FileMode    // filePerm 是日志文件的权限模式。默认值为 0600
@@ -128,6 +143,7 @@ var NewLRX = NewLogRotateX
 //   - Compress: false (默认不压缩)
 //   - DateDirLayout: true (默认按日期目录存放)
 //   - RotateByDay: true (默认按天轮转)
+//   - CompressType: comprx.CompressTypeZip (默认压缩类型为 zip)
 func NewLogRotateX(logFilePath string) *LogRotateX {
 	// 清理文件路径
 	logFilePath = filepath.Clean(logFilePath)
@@ -142,15 +158,16 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 
 	// 创建 LogRotateX 实例并设置默认值 (显式初始化所有内部字段)
 	logger := &LogRotateX{
-		LogFilePath:   logFilePath, // 日志文件路径
-		Async:         false,       // 是否异步清理 (默认同步)
-		MaxSize:       10,          // 10MB (默认值)
-		MaxAge:        0,           // 0天 (默认不清理历史文件)
-		MaxFiles:      0,           // 0个备份文件 (默认不清理备份文件)
-		LocalTime:     true,        // 使用本地时间
-		Compress:      false,       // 禁用压缩
-		DateDirLayout: true,        // 启用日期目录 (默认行为)
-		RotateByDay:   true,        // 启用按天轮转 (默认行为)
+		LogFilePath:   logFilePath,            // 日志文件路径
+		Async:         false,                  // 是否异步清理 (默认同步)
+		MaxSize:       10,                     // 10MB (默认值)
+		MaxAge:        0,                      // 0天 (默认不清理历史文件)
+		MaxFiles:      0,                      // 0个备份文件 (默认不清理备份文件)
+		LocalTime:     true,                   // 使用本地时间
+		Compress:      false,                  // 禁用压缩
+		DateDirLayout: true,                   // 启用日期目录 (默认行为)
+		RotateByDay:   true,                   // 启用按天轮转 (默认行为)
+		CompressType:  comprx.CompressTypeZip, // 默认压缩类型为 zip
 	}
 
 	// 初始化默认值
@@ -208,6 +225,11 @@ func (l *LogRotateX) initDefaults() error {
 	l.closed.Store(false)
 	l.cleanupRunning.Store(false)
 	l.rerunNeeded.Store(false)
+
+	// 初始化压缩类型, 如果为空, 则设置为默认值 zip
+	if l.CompressType.String() == "" {
+		l.CompressType = comprx.CompressTypeZip
+	}
 
 	// 标记为已初始化
 	l.initialized.Store(true)
