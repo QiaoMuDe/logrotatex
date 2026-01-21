@@ -19,6 +19,27 @@ Package logrotatex 提供日志轮转功能，管理日志文件大小和数量�
 
 ## Functions
 
+### Default
+
+返回一个默认的 LogRotateX 实例，日志文件路径为 "logs/app.log"
+
+```go
+func Default() *LogRotateX
+```
+
+- 返回值：配置好的 `LogRotateX` 实例
+
+默认配置：
+- **Async**: false (默认同步)
+- **MaxSize**: 10MB (默认值)
+- **MaxAge**: 0 (默认不清理历史文件)
+- **MaxFiles**: 0 (默认不清理备份文件)
+- **LocalTime**: true (默认使用本地时间)
+- **Compress**: false (默认不压缩)
+- **DateDirLayout**: true (默认按日期目录存放)
+- **RotateByDay**: true (默认按天轮转)
+- **CompressType**: comprx.CompressTypeZip (默认压缩类型为 zip)
+
 ### WrapWriter
 
 将 `io.Writer` 包装为不可关闭的 `io.WriteCloser`
@@ -103,6 +124,41 @@ func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter
 - 根据 `FlushInterval` 配置定期执行刷新操作
 - 内置错误处理和恢复机制
 - 调用 `Close()` 时自动停止并清理
+
+#### DefaultBufferedWriter
+
+返回一个使用默认配置的 BufferedWriter 实例，需要传入一个 io.WriteCloser 作为底层写入器
+
+```go
+func DefaultBufferedWriter(wc io.WriteCloser) *BufferedWriter
+```
+
+- 参数：
+  - `wc`：底层写入+关闭器（必需）
+- 返回值：使用默认配置的带缓冲批量写入器实例
+
+**默认配置**：
+- **缓冲区大小**：64KB
+- **最大写入次数**：500次
+- **刷新间隔**：1秒
+
+#### DefaultBuffered
+
+返回一个使用默认配置的 BufferedWriter 实例，内部自动创建一个使用默认配置的 LogRotateX 作为底层写入器
+
+```go
+func DefaultBuffered() *BufferedWriter
+```
+
+- 返回值：使用默认配置的带缓冲批量写入器实例
+
+**默认配置**：
+- **缓冲区大小**：64KB
+- **最大写入次数**：500次
+- **刷新间隔**：1秒
+- **日志文件路径**：logs/app.log
+- **按天轮转**：启用
+- **日期目录**：启用
 
 #### NewStdoutBW
 

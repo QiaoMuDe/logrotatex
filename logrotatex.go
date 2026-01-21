@@ -48,10 +48,22 @@ var (
 // 每当写入操作会导致当前日志文件大小超过 MaxSize 兆字节时, 当前文件会被关闭、重命名,
 // 并使用原始文件名创建一个新的日志文件。因此, 你提供给 LogRotateX 的文件名始终是"当前"的日志文件。
 //
-// 日志文件使用提供给 LogRotateX 的日志文件名, 格式为 `name_timestamp.ext`,
-// 其中 name 是不带扩展名的文件名, timestamp 是日志轮转时的时间, 格式为 `20060102150405`,
-// ext 是原始扩展名。例如, 如果你的 LogRotateX.LogFilePath 是 `/var/log/foo/server.log`,
-// 在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server_20161104183000.log`。
+// 按天轮转功能:
+//   - 当 RotateByDay 为 true 时, 每天自动轮转一次 (跨天时触发)
+//   - 可以同时设置按大小轮转, 满足任一条件即轮转
+//   - 支持通过 LocalTime 配置使用本地时间或 UTC 时间
+//
+// 日志文件命名规则:
+//   - 默认格式: name_timestamp.ext, 其中 name 是不带扩展名的文件名, timestamp 是日志轮转时的时间, 格式为 `20060102150405`
+//   - 如果启用 DateDirLayout, 轮转后的日志会存放在 YYYY-MM-DD/ 目录下
+//   - 例如, 如果你的 LogRotateX.LogFilePath 是 `/var/log/foo/server.log`,
+//     在 2016 年 11 月 11 日下午 6:30 创建的备份文件名将是 `/var/log/foo/server_20161104183000.log`
+//     如果启用日期目录, 则为 `/var/log/foo/2016-11-11/server_20161111183000.log`
+//
+// 压缩功能:
+//   - 当 Compress 为 true 时, 轮转后的日志文件会被压缩
+//   - 支持多种压缩格式, 通过 CompressType 字段指定 (默认为 zip)
+//   - 支持的压缩格式: zip, tar, tgz, tar.gz, gz, bz2, bzip2, zlib
 //
 // 清理旧日志文件:
 //   - 每当创建新的日志文件时, 可能会删除旧的日志文件。根据编码的时间戳, 最近的文件会被保留,
@@ -59,6 +71,7 @@ var (
 //     任何编码时间戳早于 MaxAge 天的文件都会被删除, 无论 MaxFiles 的设置如何。
 //     请注意, 时间戳中编码的时间是轮转时间, 可能与该文件最后一次写入的时间不同。
 //   - 如果 MaxFiles 和 MaxAge 都为 0, 则不会删除任何旧日志文件。
+//   - 当 Async 为 true 时, 清理操作会异步执行, 不阻塞写入操作。
 type LogRotateX struct {
 	// LogFilePath 是写入日志的文件路径。备份日志文件将保留在同一目录中。
 	// 如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。
@@ -121,6 +134,22 @@ type LogRotateX struct {
 	wg               sync.WaitGroup // wg 是等待组, 用于等待清理协程退出
 	lastRotationDate time.Time      // lastRotationDate 上次轮转的日期 (只记录日期, 不记录时间)
 	initialized      atomic.Bool    // initialized 标志: true 表示已初始化, 避免重复初始化
+}
+
+// Default 返回一个默认的 LogRotateX 实例, 日志文件路径为 "logs/app.log"。
+//
+// 默认配置:
+//   - Async: false (默认同步)
+//   - MaxSize: 10MB (默认值)
+//   - MaxAge: 0 (默认不清理历史文件)
+//   - MaxFiles: 0 (默认不清理备份文件)
+//   - LocalTime: true (默认使用本地时间)
+//   - Compress: false (默认不压缩)
+//   - DateDirLayout: true (默认按日期目录存放)
+//   - RotateByDay: true (默认按天轮转)
+//   - CompressType: comprx.CompressTypeZip (默认压缩类型为 zip)
+func Default() *LogRotateX {
+	return NewLogRotateX("logs/app.log")
 }
 
 // NewLRX 是 NewLogRotateX 的简写形式, 用于创建新的 LogRotateX 实例。

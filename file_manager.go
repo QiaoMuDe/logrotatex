@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"gitee.com/MM-Q/comprx"
-	"gitee.com/MM-Q/comprx/types"
 )
 
 // scanConfig 日志文件扫描配置
@@ -108,11 +107,11 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 
 			// 创建压缩配置
 			opts := comprx.Options{
-				CompressionLevel:      types.CompressionLevelDefault, // 默认压缩级别
-				OverwriteExisting:     true,                          // 覆盖已存在的压缩文件
-				ProgressEnabled:       false,                         // 不显示进度条
-				ProgressStyle:         types.ProgressStyleDefault,    // 默认进度条样式
-				DisablePathValidation: false,                         // 禁用路径验证
+				CompressionLevel:      comprx.CompressionLevelDefault, // 默认压缩级别
+				OverwriteExisting:     true,                           // 覆盖已存在的压缩文件
+				ProgressEnabled:       false,                          // 不显示进度条
+				ProgressStyle:         comprx.ProgressStyleDefault,    // 默认进度条样式
+				DisablePathValidation: false,                          // 禁用路径验证
 			}
 
 			// 压缩文件

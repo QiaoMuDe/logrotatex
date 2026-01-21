@@ -143,6 +143,37 @@ func main() {
 }
 ```
 
+### 🚀 最简配置
+
+```go
+package main
+
+import (
+    "log"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 使用默认配置，一行代码搞定
+    logger := logrotatex.Default()
+    defer logger.Close()
+    
+    // 设置为标准日志输出
+    log.SetOutput(logger)
+    
+    // 直接使用
+    log.Println("使用默认配置的日志消息")
+}
+```
+
+**默认配置特性**：
+- 日志文件路径：`logs/app.log`
+- 按天轮转：每天自动轮转一次
+- 日期目录：轮转后的日志存放在 `YYYY-MM-DD/` 目录下
+- 文件大小：10MB 达到限制时也会轮转
+- 本地时间：使用本地时间记录轮转时间
+- 同步清理：清理操作同步执行（可改为异步）
+
 ## 💡 使用示例
 
 ### 📝 基础用法
@@ -181,6 +212,47 @@ func main() {
     log.Println("这条日志会通过Write方法写入")
 }
 ```
+
+</details>
+
+<details>
+<summary><b>⚙️ 默认配置使用（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 使用默认配置，适合快速开发和小型应用
+    logger := logrotatex.Default()
+    defer logger.Close()
+    
+    // 默认配置已经包含按天轮转和日期目录功能
+    // 如需调整，可以修改特定配置
+    logger.MaxSize = 50      // 调整为50MB
+    logger.Compress = true    // 启用压缩节省空间
+    
+    // 设置为标准日志输出
+    log.SetOutput(logger)
+    
+    log.Println("使用默认配置的日志消息")
+}
+```
+
+**默认配置说明**：
+- **Async**: false - 清理操作同步执行
+- **MaxSize**: 10MB - 文件大小限制
+- **MaxAge**: 0 - 不按时间清理
+- **MaxFiles**: 0 - 不按数量清理
+- **LocalTime**: true - 使用本地时间
+- **Compress**: false - 不压缩
+- **DateDirLayout**: true - 按日期目录存放
+- **RotateByDay**: true - 按天轮转
+- **CompressType**: zip - 默认压缩格式
 
 </details>
 
@@ -325,6 +397,43 @@ func main() {
 </details>
 
 <details>
+<summary><b>⚙️ 默认缓冲配置（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "log"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 方式1：使用 DefaultBufferedWriter，需要传入一个 io.WriteCloser
+    logger := logrotatex.NewLogRotateX("logs/app.log")
+    defer logger.Close()
+    
+    buffered := logrotatex.DefaultBufferedWriter(logger)
+    defer buffered.Close()
+    
+    log.SetOutput(buffered)
+    log.Println("使用 DefaultBufferedWriter 的日志消息")
+    
+    // 方式2：使用 DefaultBuffered，内部自动创建 LogRotateX
+    buffered2 := logrotatex.DefaultBuffered()
+    defer buffered2.Close()
+    
+    // 可以直接使用，无需创建 LogRotateX
+    buffered2.Write([]byte("使用 DefaultBuffered 的日志消息\n"))
+}
+```
+
+**两种默认方式的区别**：
+- **DefaultBufferedWriter**：需要传入一个 `io.WriteCloser`，适用于已有日志写入器的场景
+- **DefaultBuffered**：内部自动创建默认配置的 `LogRotateX`，适用于快速开始场景
+
+</details>
+
+<details>
 <summary><b>📊 性能监控示例（点击展开）</b></summary>
 
 ```go
@@ -412,53 +521,6 @@ func main() {
 </details>
 
 <details>
-<summary><b>⏱️ 定时刷新器特性（点击展开）</b></summary>
-
-```go
-package main
-
-import (
-    "log"
-    "time"
-    "gitee.com/MM-Q/logrotatex"
-)
-
-func main() {
-    // 创建日志轮转器
-    logger := logrotatex.NewLogRotateX("logs/app.log")
-    
-    // 创建缓冲写入器，使用定时刷新器确保数据及时写入
-    // 定时器会在后台定期检查并刷新缓冲区，防止数据长时间滞留
-    buffered := logrotatex.NewBufferedWriter(logger, logrotatex.DefBufCfg())
-    defer buffered.Close()
-    
-    // 设置标准日志输出到缓冲写入器
-    log.SetOutput(buffered)
-    
-    // 模拟长时间运行的服务
-    for i := 0; i < 10; i++ {
-        log.Printf("服务运行中 - 第 %d 次心跳\n", i+1)
-        
-        // 模拟低频率写入场景
-        // 定时刷新器会确保这些数据及时写入磁盘，即使未达到缓冲区触发条件
-        time.Sleep(2 * time.Second)
-    }
-    
-    // 程序结束时，Close() 会确保所有数据被刷新
-    log.Println("服务正常退出")
-}
-```
-
-**定时刷新器优势：**
-- **数据安全性**：防止缓冲区数据长时间未刷新，确保重要日志及时落盘
-- **低延迟保证**：即使写入频率很低，也能通过定时器保证数据及时性
-- **后台自动运行**：无需手动干预，定时器协程在后台自动管理刷新逻辑
-- **错误恢复机制**：内置 panic 恢复，保障定时器协程稳定运行
-- **优雅关闭**：支持运行时状态检测，关闭时立即停止定时器并刷新剩余数据
-
-</details>
-
-<details>
 <summary><b>🖥️ 终端输出缓冲（stdout）（点击展开）</b></summary>
 
 ```go
@@ -491,7 +553,7 @@ func main() {
 ```
 </details>
 
-### 🔌 与主流日志库集成
+### 🔌 与主流项目结合
 
 <details>
 <summary><b>📊 Logrus 集成示例（点击展开）</b></summary>
@@ -582,6 +644,77 @@ func main() {
         zap.String("host", "localhost:3306"),
         zap.Error(fmt.Errorf("connection timeout")),
     )
+}
+```
+
+</details>
+
+<details>
+<summary><b>🌐 Gin 集成示例（点击展开）</b></summary>
+
+```go
+package main
+
+import (
+    "github.com/gin-gonic/gin"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 创建日志轮转器
+    logger := logrotatex.Default()
+    defer logger.Close()
+    
+    // 设置Gin的默认写入器
+    gin.DefaultWriter = logger
+    
+    // 创建Gin引擎
+    r := gin.Default()
+    
+    // 使用默认的中间件，日志会自动写入到LogRotateX
+    r.GET("/ping", func(c *gin.Context) {
+        c.JSON(200, gin.H{
+            "message": "pong",
+        })
+    })
+    
+    // 启动服务器
+    r.Run(":8080")
+}
+```
+
+**Gin集成优势：**
+- **无缝集成**：通过设置`gin.DefaultWriter`，所有Gin的日志输出都会自动写入LogRotateX
+- **自动轮转**：日志文件会根据配置自动轮转，无需手动管理
+- **性能优化**：可以结合BufferedWriter进一步提升性能
+- **生产就绪**：适合生产环境使用，自动管理日志文件大小和数量
+
+**高级用法（结合BufferedWriter）：**
+```go
+package main
+
+import (
+    "github.com/gin-gonic/gin"
+    "gitee.com/MM-Q/logrotatex"
+)
+
+func main() {
+    // 使用 DefaultBuffered 创建缓冲写入器，内部自动创建 LogRotateX
+    buffered := logrotatex.DefaultBuffered()
+    defer buffered.Close()
+    
+    // 设置Gin的默认写入器为缓冲写入器
+    gin.DefaultWriter = buffered
+    
+    // 创建Gin引擎
+    r := gin.Default()
+    
+    // 所有Gin日志会先写入缓冲区，然后批量写入文件
+    r.GET("/api/users", func(c *gin.Context) {
+        c.JSON(200, gin.H{"users": []string{"user1", "user2"}})
+    })
+    
+    r.Run(":8080")
 }
 ```
 
@@ -690,62 +823,12 @@ func main() {
 
 ### 🎯 推荐配置场景
 
-<details>
-<summary><b>🏢 企业生产环境</b></summary>
-
-```go
-logger := logrotatex.NewLogRotateX("logs/production.log")
-logger.MaxSize = 100      // 100MB - 平衡性能和管理
-logger.MaxFiles = 30    // 30个历史文件 - 满足审计要求
-logger.MaxAge = 90        // 90天 - 符合合规要求
-logger.Compress = true    // 启用压缩 - 节省存储
-```
-
-</details>
-
-<details>
-<summary><b>🔬 开发测试环境</b></summary>
-
-```go
-logger := logrotatex.NewLogRotateX("logs/dev.log")
-logger.MaxSize = 10       // 10MB - 快速轮转便于测试
-logger.MaxFiles = 3     // 3个历史文件 - 节省空间
-logger.MaxAge = 7         // 7天 - 短期保留
-logger.Compress = false   // 不压缩 - 便于查看
-```
-
-</details>
-
-<details>
-<summary><b>☁️ 云原生环境</b></summary>
-
-```go
-logger := logrotatex.NewLogRotateX("logs/cloud.log")
-logger.MaxSize = 50       // 50MB - 适合容器环境
-logger.MaxFiles = 5     // 5个历史文件 - 控制存储使用
-logger.MaxAge = 14        // 14天 - 配合日志收集系统
-logger.Compress = true    // 启用压缩 - 减少网络传输
-```
-
-</details>
-
-<details>
-<summary><b>📅 按天归档环境</b></summary>
-
-```go
-logger := logrotatex.NewLogRotateX("logs/daily.log")
-logger.RotateByDay = true  // 启用按天轮转 - 每天自动归档
-logger.MaxSize = 100      // 100MB - 文件大小达到限制时也会轮转
-logger.MaxFiles = 30    // 30个历史文件 - 保留30天的日志
-logger.MaxAge = 90        // 90天 - 长期保留
-logger.Compress = true    // 启用压缩 - 节省存储空间
-logger.DateDirLayout = true  // 启用日期目录 - 按日期目录存放备份文件
-```
-
-**适用场景：**
-- 需要按天归档日志的应用
-- 审计要求按天查看日志
-- 需要长期保留日志的场景
+| 场景 | 配置 | 说明 |
+|------|------|------|
+| 🏢 **企业生产环境** | `logger := logrotatex.NewLogRotateX("logs/production.log")`<br>`logger.MaxSize = 100`<br>`logger.MaxFiles = 30`<br>`logger.MaxAge = 90`<br>`logger.Compress = true` | 100MB - 平衡性能和管理<br>30个历史文件 - 满足审计要求<br>90天 - 符合合规要求<br>启用压缩 - 节省存储 |
+| 🔬 **开发测试环境** | `logger := logrotatex.NewLogRotateX("logs/dev.log")`<br>`logger.MaxSize = 10`<br>`logger.MaxFiles = 3`<br>`logger.MaxAge = 7`<br>`logger.Compress = false` | 10MB - 快速轮转便于测试<br>3个历史文件 - 节省空间<br>7天 - 短期保留<br>不压缩 - 便于查看 |
+| ☁️ **云原生环境** | `logger := logrotatex.NewLogRotateX("logs/cloud.log")`<br>`logger.MaxSize = 50`<br>`logger.MaxFiles = 5`<br>`logger.MaxAge = 14`<br>`logger.Compress = true` | 50MB - 适合容器环境<br>5个历史文件 - 控制存储使用<br>14天 - 配合日志收集系统<br>启用压缩 - 减少网络传输 |
+| 📅 **按天归档环境** | `logger := logrotatex.NewLogRotateX("logs/daily.log")`<br>`logger.RotateByDay = true`<br>`logger.MaxSize = 100`<br>`logger.MaxFiles = 30`<br>`logger.MaxAge = 90`<br>`logger.Compress = true`<br>`logger.DateDirLayout = true` | 启用按天轮转 - 每天自动归档<br>100MB - 文件大小达到限制时也会轮转<br>30个历史文件 - 保留30天的日志<br>90天 - 长期保留<br>启用压缩 - 节省存储空间<br>启用日期目录 - 按日期目录存放备份文件 |
 
 </details>
 
