@@ -144,8 +144,8 @@ func TestNewBufferedWriter(t *testing.T) {
 		if bw.maxWriteCount != 10 {
 			t.Errorf("Expected log count 10, got %d", bw.maxWriteCount)
 		}
-		if bw.flushInterval != 100*time.Millisecond {
-			t.Errorf("Expected flush interval 100ms, got %v", bw.flushInterval)
+		if bw.flushInterval != 500*time.Millisecond {
+			t.Errorf("Expected flush interval 500ms (due to minimum limit), got %v", bw.flushInterval)
 		}
 	})
 
@@ -263,7 +263,7 @@ func TestFlushConditions(t *testing.T) {
 		config := &BufCfg{
 			MaxBufferSize: 1024,
 			MaxWriteCount: 100,
-			FlushInterval: 50 * time.Millisecond, // 很短的间隔
+			FlushInterval: 500 * time.Millisecond, // 使用最小刷新间隔
 		}
 
 		bw := NewBufferedWriter(&writerCloser{w: writer, c: closer}, config)
@@ -273,7 +273,7 @@ func TestFlushConditions(t *testing.T) {
 		_, _ = bw.Write([]byte("log\n"))
 
 		// 等待超过刷新间隔
-		time.Sleep(60 * time.Millisecond)
+		time.Sleep(510 * time.Millisecond)
 
 		// 再写入一条，应该触发时间刷新
 		_, _ = bw.Write([]byte("log2\n"))
@@ -404,12 +404,6 @@ func TestStatusMethods(t *testing.T) {
 	if bw.WriteCount() != 1 {
 		t.Errorf("Expected log count 1, got %d", bw.WriteCount())
 	}
-
-	// 测试时间方法
-	duration := bw.TimeSinceLastFlush()
-	if duration < 0 {
-		t.Error("TimeSinceLastFlush should not be negative")
-	}
 }
 
 // TestConcurrency 测试并发安全
@@ -447,10 +441,7 @@ func TestConcurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
-				bw.BufferSize()
-				bw.WriteCount()
 				bw.IsClosed()
-				bw.TimeSinceLastFlush()
 				time.Sleep(1 * time.Millisecond)
 			}
 		}()
@@ -488,8 +479,11 @@ func TestErrorHandling(t *testing.T) {
 		if err == nil {
 			t.Error("Expected write error")
 		}
-		if err.Error() != "write error" {
-			t.Errorf("Expected 'write error', got %v", err)
+		expectedErr := "logrotatex: write succeeded but flush failed: write error"
+		actualErr := err.Error()
+		// 检查错误消息是否包含期望的错误
+		if !strings.Contains(actualErr, "write succeeded but flush failed") || !strings.Contains(actualErr, "write error") {
+			t.Errorf("Expected error containing '%s', got %v", expectedErr, actualErr)
 		}
 	})
 

@@ -61,7 +61,7 @@ func WrapWriter(w io.Writer) io.WriteCloser
 type BufCfg struct {
 	MaxBufferSize int           // 最大缓冲区大小，默认64KB
 	MaxWriteCount int           // 最大写入次数，默认500次
-	FlushInterval time.Duration // 刷新间隔，默认1秒
+	FlushInterval time.Duration // 刷新间隔，默认1秒，最小500ms
 }
 ```
 
@@ -76,7 +76,7 @@ func DefBufCfg() *BufCfg
 默认配置：
 - **缓冲区大小**：64KB - 平衡内存使用和刷新频率
 - **最大写入次数**：500次 - 避免过度频繁的刷新操作  
-- **刷新间隔**：1秒 - 内置定时刷新器，确保数据及时写入
+- **刷新间隔**：1秒 - 内置定时刷新器，确保数据及时写入，最小间隔500ms
 
 **定时刷新器特性**：
 - 后台定时器协程每秒检查并刷新缓冲区

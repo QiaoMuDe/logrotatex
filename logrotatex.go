@@ -133,7 +133,7 @@ type LogRotateX struct {
 	rerunNeeded      atomic.Bool    // 重跑需求标志: false=不需要重跑, true=需要在本轮后再跑一次
 	wg               sync.WaitGroup // wg 是等待组, 用于等待清理协程退出
 	lastRotationDate time.Time      // lastRotationDate 上次轮转的日期 (只记录日期, 不记录时间)
-	initialized      atomic.Bool    // initialized 标志: true 表示已初始化, 避免重复初始化
+	initialized      bool           // initialized 标志: true 表示已初始化, 避免重复初始化
 }
 
 // Default 返回一个默认的 LogRotateX 实例, 日志文件路径为 "logs/app.log"。
@@ -199,11 +199,6 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 		CompressType:  comprx.CompressTypeZip, // 默认压缩类型为 zip
 	}
 
-	// 初始化默认值
-	if err := logger.initDefaults(); err != nil {
-		panic(err)
-	}
-
 	return logger
 }
 
@@ -216,13 +211,13 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 //   - error: 初始化失败时返回错误，否则返回 nil
 func (l *LogRotateX) initDefaults() error {
 	// 如果已经初始化过，直接返回
-	if l.initialized.Load() {
+	if l.initialized {
 		return nil
 	}
 
 	// 如果 LogFilePath 为空，设置默认值
 	if l.LogFilePath == "" {
-		l.LogFilePath = filepath.Join(os.TempDir(), filepath.Base(os.Args[0])+defaultLogSuffix)
+		l.LogFilePath = getDefaultLogFilePath()
 	}
 
 	// 确保 LogFilePath 是干净的路径
@@ -238,6 +233,21 @@ func (l *LogRotateX) initDefaults() error {
 	dir := filepath.Dir(l.LogFilePath)
 	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
 		return fmt.Errorf("logrotatex: failed to create log directory: %w", err)
+	}
+
+	// 初始化最大文件大小
+	if l.MaxSize <= 0 {
+		l.MaxSize = defaultMaxSize
+	}
+
+	// 初始化最大保留时间
+	if l.MaxAge < 0 {
+		l.MaxAge = 0
+	}
+
+	// 初始化最大备份文件数
+	if l.MaxFiles < 0 {
+		l.MaxFiles = 0
 	}
 
 	// 初始化内部文件权限
@@ -261,7 +271,7 @@ func (l *LogRotateX) initDefaults() error {
 	}
 
 	// 标记为已初始化
-	l.initialized.Store(true)
+	l.initialized = true
 
 	return nil
 }
@@ -280,8 +290,10 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	defer l.mu.Unlock()
 
 	// 初始化默认值（确保直接通过结构体字面量创建的实例也能正确初始化）
-	if err := l.initDefaults(); err != nil {
-		return 0, err
+	if !l.initialized {
+		if err := l.initDefaults(); err != nil {
+			return 0, err
+		}
 	}
 
 	// 关闭后快速短路, 避免继续 open/rotate/write
@@ -357,6 +369,13 @@ func (l *LogRotateX) Sync() error {
 	// 加锁以确保并发安全, 防止在同步过程中文件被其他操作修改
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	// 初始化默认值（确保直接通过结构体字面量创建的实例也能正确初始化）
+	if !l.initialized {
+		if err := l.initDefaults(); err != nil {
+			return err
+		}
+	}
 
 	// 二次检查, 避免与关闭并发竞态
 	if l.closed.Load() {

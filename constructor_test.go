@@ -28,6 +28,11 @@ func TestNewLogRotateX_DirectoryPermissions(t *testing.T) {
 		}
 	}()
 
+	// 调用Sync方法触发初始化，确保目录被创建
+	if syncErr := logger.Sync(); syncErr != nil {
+		t.Logf("同步失败: %v", syncErr)
+	}
+
 	// 检查目录是否被创建
 	dir := filepath.Dir(logger.LogFilePath)
 	info, err := os.Stat(dir)

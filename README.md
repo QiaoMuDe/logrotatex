@@ -376,7 +376,7 @@ func main() {
     config := &logrotatex.BufCfg{
         MaxBufferSize: 128 * 1024,                      // 128KB 缓冲区
         MaxWriteCount:   1000,                          // 1000条写入次数
-        FlushInterval: 500 * time.Millisecond,          // 500ms 刷新间隔
+        FlushInterval: 500 * time.Millisecond,          // 500ms 刷新间隔（最小间隔）
     }
     
     // 创建缓冲写入器
@@ -537,7 +537,7 @@ func main() {
     cfg := &logrotatex.BufCfg{
         MaxBufferSize: 32 * 1024,               // 32KB 缓冲区
         MaxWriteCount: 200,                     // 每200次触发一次刷新
-        FlushInterval: 200 * time.Millisecond,  // 200ms 刷新间隔
+        FlushInterval: 500 * time.Millisecond,  // 500ms 刷新间隔（最小间隔）
     }
 
     bw := logrotatex.NewStdoutBW(cfg)

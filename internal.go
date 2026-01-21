@@ -34,6 +34,14 @@ const (
 	defaultDirPerm = 0700
 )
 
+// getDefaultLogFilePath 生成默认的日志文件路径
+//
+// 返回值:
+//   - string: 默认的日志文件完整路径
+func getDefaultLogFilePath() string {
+	return filepath.Join(os.TempDir(), filepath.Base(os.Args[0])+defaultLogSuffix)
+}
+
 // logInfo 是一个便捷结构体，用于返回文件名及其嵌入的时间戳。
 // 它包含了日志文件的时间戳信息和文件系统信息，用于日志轮转时的文件管理。
 type logInfo struct {
@@ -78,11 +86,9 @@ func (l *LogRotateX) filename() string {
 	if l.LogFilePath != "" {
 		return l.LogFilePath
 	}
-	// 生成默认的日志文件名, 格式为: 程序名_logrotatex.log
-	name := filepath.Base(os.Args[0]) + defaultLogSuffix
 
-	// 将日志文件存储在系统的临时目录中
-	return filepath.Join(os.TempDir(), name)
+	// 返回默认路径
+	return getDefaultLogFilePath()
 }
 
 // max 返回日志文件轮转的大小阈值。
@@ -172,7 +178,7 @@ func (l *LogRotateX) rotate() error {
 
 	// 调用 openNew 方法打开一个新的日志文件。
 	if err := l.openNew(); err != nil {
-		return err
+		return fmt.Errorf("logrotatex: failed to open new file during rotation: %w", err)
 	}
 
 	// 清理操作：按开关选择同步或异步
@@ -227,14 +233,15 @@ func (l *LogRotateX) openNew() error {
 			}
 		}
 
+		// 重命名文件到新路径
 		if renameErr := os.Rename(name, newname); renameErr != nil {
 			return fmt.Errorf("logrotatex: unable to rename log file: %w", renameErr)
 		}
 
-		// 在非 Linux 系统上, 此操作无效
-		if chownErr := chown(name, info); chownErr != nil {
-			return fmt.Errorf("logrotatex: unable to set file owner: %w", chownErr)
-		}
+		// // 在非 Linux 系统上, 此操作无效
+		// if chownErr := chown(name, info); chownErr != nil {
+		// 	return fmt.Errorf("logrotatex: unable to set file owner: %w", chownErr)
+		// }
 	}
 
 	// 使用 truncate 打开文件, 确保文件存在且可写入。
