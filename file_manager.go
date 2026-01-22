@@ -460,6 +460,7 @@ func (l *LogRotateX) getFilesToRemove(files []logInfo) []logInfo {
 	// 快速失败: 没有设置任何清理规则
 	hasBackupRule := l.MaxFiles > 0
 	hasAgeRule := l.MaxAge > 0
+
 	if !hasBackupRule && !hasAgeRule {
 		return nil
 	}

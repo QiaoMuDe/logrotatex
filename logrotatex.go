@@ -65,13 +65,30 @@ var (
 //   - 支持多种压缩格式, 通过 CompressType 字段指定 (默认为 zip)
 //   - 支持的压缩格式: zip, tar, tgz, tar.gz, gz, bz2, bzip2, zlib
 //
-// 清理旧日志文件:
-//   - 每当创建新的日志文件时, 可能会删除旧的日志文件。根据编码的时间戳, 最近的文件会被保留,
-//     最多保留数量等于 MaxFiles (如果 MaxFiles 为 0, 则保留所有文件) 。
-//     任何编码时间戳早于 MaxAge 天的文件都会被删除, 无论 MaxFiles 的设置如何。
-//     请注意, 时间戳中编码的时间是轮转时间, 可能与该文件最后一次写入的时间不同。
-//   - 如果 MaxFiles 和 MaxAge 都为 0, 则不会删除任何旧日志文件。
-//   - 当 Async 为 true 时, 清理操作会异步执行, 不阻塞写入操作。
+// 清理旧日志文件, 清理规则支持三种场景，根据 MaxFiles 和 MaxAge 的组合决定:
+//
+//  1. 数量+天数组合 (MaxFiles>0, MaxAge>0):
+//
+//     - 先按天数筛选，只保留 MaxAge 天内的文件
+//
+//     - 然后对每天的文件按时间排序，每天最多保留 MaxFiles 个文件
+//
+//  2. 只按数量保留 (MaxFiles>0, MaxAge=0):
+//
+//     - 按时间戳从新到旧排序，保留最新的 MaxFiles 个文件
+//
+//     - MaxFiles 包括当前正在使用的日志文件
+//
+//  3. 只按天数保留 (MaxFiles=0, MaxAge>0):
+//
+//     - 删除所有时间戳早于 MaxAge 天的文件
+//
+//     - 如果 MaxFiles 和 MaxAge 都为 0, 则不会删除任何旧日志文件。
+//
+//     - 当 Async 为 true 时, 清理操作会异步执行, 不阻塞写入操作。
+//
+// 注意:
+//   - MaxFiles 指定的是总文件数量（包括当前文件），不是仅备份文件数量
 type LogRotateX struct {
 	// LogFilePath 是写入日志的文件路径。备份日志文件将保留在同一目录中。
 	// 如果该值为空, 则使用 os.TempDir() 下的 <程序名>_logrotatex.log。

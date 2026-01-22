@@ -6,12 +6,12 @@
 
 package logrotatex
 
-import (
-	"os"
-)
+// import (
+// 	"os"
+// )
 
-// chown 在 Windows 系统下为空操作，始终返回 nil。
-// Windows 系统的权限管理机制与 Unix 系统不同。
-func chown(_ string, _ os.FileInfo) error {
-	return nil
-}
+// // chown 在 Windows 系统下为空操作，始终返回 nil。
+// // Windows 系统的权限管理机制与 Unix 系统不同。
+// func chown(_ string, _ os.FileInfo) error {
+// 	return nil
+// }

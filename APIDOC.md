@@ -240,7 +240,7 @@ type LogRotateX struct {
 	LogFilePath   string                `json:"logfilepath" yaml:"logfilepath"`   // 日志文件路径
 	Async         bool                  `json:"async" yaml:"async"`             // 是否启用异步清理
 	MaxSize       int                   `json:"maxsize" yaml:"maxsize"`         // 单个日志文件最大大小（MB）
-	MaxAge        int                   `json:"maxage" yaml:"maxage"`           // 保留日志文件天数
+	MaxAge        int                   `json:"maxage" yaml:"maxage"`           // 最大保留日志文件天数
 	MaxFiles      int                   `json:"maxfiles" yaml:"maxfiles"`       // 最大保留历史日志文件数量
 	LocalTime     bool                  `json:"localtime" yaml:"localtime"`     // 是否使用本地时间记录轮转时间
 	Compress      bool                  `json:"compress" yaml:"compress"`       // 轮转后日志文件是否压缩
@@ -277,6 +277,38 @@ type LogRotateX struct {
 - **双重触发**：可以同时设置按大小轮转，满足任一条件即轮转
 - **时间控制**：支持 `LocalTime` 配置，使用本地时间或 UTC 时间
 - **灵活组合**：可与 `DateDirLayout` 组合使用，按日期目录存放备份文件
+
+**清理规则**
+
+`LogRotateX` 支持三种清理场景，根据 `MaxFiles` 和 `MaxAge` 的组合决定：
+
+> **1. 数量+天数组合 (MaxFiles>0, MaxAge>0)**
+
+- **先按天数筛选**：只保留 `MaxAge` 天内的文件
+- **再按数量筛选**：对每天的文件按时间排序，每天最多保留 `MaxFiles` 个文件
+- **示例**：`MaxFiles=3, MaxAge=7`，保留最近 7 天内的文件，每天最多保留 3 个
+
+> **2. 只按数量保留 (MaxFiles>0, MaxAge=0)**
+
+- **按时间戳排序**：从新到旧排序，保留最新的 `MaxFiles` 个文件
+- **包括当前文件**：`MaxFiles` 包括当前正在使用的日志文件
+- **示例**：`MaxFiles=3, MaxAge=0`，保留最新的 3 个文件（包括当前文件）
+
+> **3. 只按天数保留 (MaxFiles=0, MaxAge>0)**
+
+- **按时间筛选**：删除所有时间戳早于 `MaxAge` 天的文件
+- **不限制数量**：在时间范围内的文件数量不受限制
+- **示例**：`MaxFiles=0, MaxAge=7`，保留最近 7 天内的所有文件
+
+> **特殊情况**
+
+- **无清理规则**：如果 `MaxFiles` 和 `MaxAge` 都为 0，则不会删除任何旧日志文件
+- **异步清理**：当 `Async` 为 `true` 时，清理操作会异步执行，不阻塞写入操作
+
+> **重要提示**
+
+- **MaxFiles 含义**：`MaxFiles` 指定的是总文件数量（包括当前文件），不是仅备份文件数量
+- **时间戳来源**：时间戳中编码的时间是轮转时间，可能与该文件最后一次写入的时间不同
 
 #### NewLogRotateX
 
