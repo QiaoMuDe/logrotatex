@@ -431,6 +431,11 @@ func main() {
 - **DefaultBufferedWriter**：需要传入一个 `io.WriteCloser`，适用于已有日志写入器的场景
 - **DefaultBuffered**：内部自动创建默认配置的 `LogRotateX`，适用于快速开始场景
 
+**BufferedWriter 默认配置**：
+- **缓冲区大小**：256KB - 平衡内存使用和刷新频率
+- **最大写入次数**：1000次 - 避免过度频繁的刷新操作
+- **刷新间隔**：1秒 - 内置定时刷新器，确保数据及时写入，最小间隔500ms
+
 </details>
 
 <details>

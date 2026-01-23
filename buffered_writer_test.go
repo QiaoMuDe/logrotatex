@@ -97,14 +97,14 @@ func (wc *writerCloser) Close() error {
 func TestDefBufCfg(t *testing.T) {
 	cfg := DefBufCfg()
 
-	if cfg.MaxBufferSize != 64*1024 {
-		t.Errorf("Expected MaxBufferSize 64KB, got %d", cfg.MaxBufferSize)
+	if cfg.MaxBufferSize != DefaultMaxBufferSize {
+		t.Errorf("Expected MaxBufferSize %d, got %d", DefaultMaxBufferSize, cfg.MaxBufferSize)
 	}
-	if cfg.MaxWriteCount != 500 {
-		t.Errorf("Expected MaxWriteCount 500, got %d", cfg.MaxWriteCount)
+	if cfg.MaxWriteCount != DefaultMaxWriteCount {
+		t.Errorf("Expected MaxWriteCount %d, got %d", DefaultMaxWriteCount, cfg.MaxWriteCount)
 	}
-	if cfg.FlushInterval != 1*time.Second {
-		t.Errorf("Expected FlushInterval 1s, got %v", cfg.FlushInterval)
+	if cfg.FlushInterval != DefaultFlushInterval {
+		t.Errorf("Expected FlushInterval %v, got %v", DefaultFlushInterval, cfg.FlushInterval)
 	}
 }
 
@@ -121,7 +121,7 @@ func TestNewBufferedWriter(t *testing.T) {
 		if bw.wc != wc {
 			t.Error("WriteCloser not set correctly")
 		}
-		if bw.maxBufferSize != 64*1024 {
+		if bw.maxBufferSize != DefaultMaxBufferSize {
 			t.Error("Default buffer size not set")
 		}
 	})

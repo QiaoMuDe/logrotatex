@@ -59,8 +59,8 @@ func WrapWriter(w io.Writer) io.WriteCloser
 
 ```go
 type BufCfg struct {
-	MaxBufferSize int           // 最大缓冲区大小，默认64KB
-	MaxWriteCount int           // 最大写入次数，默认500次
+	MaxBufferSize int           // 最大缓冲区大小，默认256KB
+	MaxWriteCount int           // 最大写入次数，默认1000次
 	FlushInterval time.Duration // 刷新间隔，默认1秒，最小500ms
 }
 ```
@@ -74,8 +74,8 @@ func DefBufCfg() *BufCfg
 ```
 
 默认配置：
-- **缓冲区大小**：64KB - 平衡内存使用和刷新频率
-- **最大写入次数**：500次 - 避免过度频繁的刷新操作  
+- **缓冲区大小**：256KB - 平衡内存使用和刷新频率
+- **最大写入次数**：1000次 - 避免过度频繁的刷新操作  
 - **刷新间隔**：1秒 - 内置定时刷新器，确保数据及时写入，最小间隔500ms
 
 **定时刷新器特性**：
@@ -138,8 +138,9 @@ func DefaultBufferedWriter(wc io.WriteCloser) *BufferedWriter
 - 返回值：使用默认配置的带缓冲批量写入器实例
 
 **默认配置**：
-- **缓冲区大小**：64KB
-- **最大写入次数**：500次
+默认配置：
+- **缓冲区大小**：256KB
+- **最大写入次数**：1000次
 - **刷新间隔**：1秒
 
 #### DefaultBuffered
@@ -153,8 +154,8 @@ func DefaultBuffered() *BufferedWriter
 - 返回值：使用默认配置的带缓冲批量写入器实例
 
 **默认配置**：
-- **缓冲区大小**：64KB
-- **最大写入次数**：500次
+- **缓冲区大小**：256KB
+- **最大写入次数**：1000次
 - **刷新间隔**：1秒
 - **日志文件路径**：logs/app.log
 - **按天轮转**：启用

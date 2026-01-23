@@ -21,6 +21,18 @@ var (
 	_ io.WriteCloser = (*BufferedWriter)(nil)
 )
 
+// 缓冲写入器默认配置常量
+const (
+	// DefaultMaxBufferSize 默认最大缓冲区大小 (256KB)
+	DefaultMaxBufferSize = 256 * 1024
+	// DefaultMaxWriteCount 默认最大写入次数 (1000次)
+	DefaultMaxWriteCount = 1000
+	// DefaultFlushInterval 默认刷新间隔 (1秒)
+	DefaultFlushInterval = 1 * time.Second
+	// MinFlushInterval 最小刷新间隔 (500ms), 防止过于频繁的刷新
+	MinFlushInterval = 500 * time.Millisecond
+)
+
 // BufferedWriter 带缓冲批量写入器
 // 可以包装任何写入器和关闭器, 提供批量写入功能
 type BufferedWriter struct {
@@ -33,8 +45,8 @@ type BufferedWriter struct {
 	tickerWg    sync.WaitGroup // 用于跟踪定时器协程生命周期
 
 	// 三重刷新条件
-	maxBufferSize int           // 最大缓冲区大小 (字节), 默认64KB
-	maxWriteCount int           // 最大写入次数, 默认500次
+	maxBufferSize int           // 最大缓冲区大小 (字节), 默认256KB
+	maxWriteCount int           // 最大写入次数, 默认1000次
 	flushInterval time.Duration // 刷新间隔, 默认1秒 (最小500ms)
 
 	// 状态跟踪
@@ -46,20 +58,20 @@ type BufferedWriter struct {
 
 // BufCfg 缓冲写入器配置
 type BufCfg struct {
-	MaxBufferSize int           // 最大缓冲区大小, 默认64KB
-	MaxWriteCount int           // 最大写入次数, 默认500次
+	MaxBufferSize int           // 最大缓冲区大小, 默认256KB
+	MaxWriteCount int           // 最大写入次数, 默认1000次
 	FlushInterval time.Duration // 刷新间隔, 默认1秒(最小500ms)
 }
 
 // DefBufCfg 默认缓冲写入器配置
 //
 // 注意:
-//   - 默认缓冲区大小为64KB, 最大写入次数为500次, 刷新间隔为1秒
+//   - 默认缓冲区大小为256KB, 最大写入次数为1000次, 刷新间隔为1秒
 func DefBufCfg() *BufCfg {
 	return &BufCfg{
-		MaxBufferSize: 64 * 1024,       // 64KB缓冲区
-		MaxWriteCount: 500,             // 500次写入
-		FlushInterval: 1 * time.Second, // 1秒刷新间隔
+		MaxBufferSize: DefaultMaxBufferSize, // 默认256KB缓冲区
+		MaxWriteCount: DefaultMaxWriteCount, // 默认1000次写入
+		FlushInterval: DefaultFlushInterval, // 默认1秒刷新间隔
 	}
 }
 
@@ -103,8 +115,8 @@ var NewBW = NewBufferedWriter
 //   - *BufferedWriter: 使用默认配置的带缓冲批量写入器实例
 //
 // 默认配置:
-//   - 缓冲区大小: 64KB
-//   - 最大写入次数: 500次
+//   - 缓冲区大小: 256KB
+//   - 最大写入次数: 1000次
 //   - 刷新间隔: 1秒
 func DefaultBufferedWriter(wc io.WriteCloser) *BufferedWriter {
 	return NewBufferedWriter(wc, DefBufCfg())
@@ -117,8 +129,8 @@ func DefaultBufferedWriter(wc io.WriteCloser) *BufferedWriter {
 //   - *BufferedWriter: 使用默认配置的带缓冲批量写入器实例
 //
 // 默认配置:
-//   - 缓冲区大小: 64KB
-//   - 最大写入次数: 500次
+//   - 缓冲区大小: 256KB
+//   - 最大写入次数: 1000次
 //   - 刷新间隔: 1秒
 //   - 日志文件路径: logs/app.log
 //   - 按天轮转: 启用
@@ -150,16 +162,16 @@ func (bw *BufferedWriter) initDefaults() error {
 
 	// 参数校验, 负值,零值统一设置为默认值
 	if bw.maxBufferSize <= 0 {
-		bw.maxBufferSize = 64 * 1024 // 默认64KB缓冲区
+		bw.maxBufferSize = DefaultMaxBufferSize // 默认256KB缓冲区
 	}
 	if bw.maxWriteCount <= 0 {
-		bw.maxWriteCount = 500 // 默认500次写入
+		bw.maxWriteCount = DefaultMaxWriteCount // 默认1000次写入
 	}
 	// 设置刷新间隔, 最小500ms, 默认1秒
-	if bw.flushInterval > 0 && bw.flushInterval < 500*time.Millisecond {
-		bw.flushInterval = 500 * time.Millisecond // 最小500ms, 防止过于频繁的刷新
+	if bw.flushInterval > 0 && bw.flushInterval < MinFlushInterval {
+		bw.flushInterval = MinFlushInterval // 最小500ms, 防止过于频繁的刷新
 	} else if bw.flushInterval <= 0 {
-		bw.flushInterval = 1 * time.Second // 默认1秒刷新间隔
+		bw.flushInterval = DefaultFlushInterval // 默认1秒刷新间隔
 	}
 
 	// 初始化内部字段
@@ -171,8 +183,8 @@ func (bw *BufferedWriter) initDefaults() error {
 	bw.closed.Store(false)             // 默认设置为未关闭
 	bw.closeChan = make(chan struct{}) // 初始化关闭信号通道
 
-	// 启动刷新定时器 (如果刷新间隔不为0且未启动)
-	if bw.flushInterval > 0 && bw.flushTicker == nil {
+	// 启动刷新定时器
+	if bw.flushTicker == nil {
 		bw.flushTicker = time.NewTicker(bw.flushInterval)
 
 		// 启动定时器协程
