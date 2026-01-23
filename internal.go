@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gitee.com/MM-Q/comprx"
 )
 
 const (
@@ -45,6 +47,79 @@ func getDefaultLogFilePath() string {
 		progName = "logrotatex"
 	}
 	return filepath.Join(os.TempDir(), progName+defaultLogSuffix)
+}
+
+// initDefaults 初始化 LogRotateX 实例的默认值。
+// 该方法确保无论是通过构造函数创建还是直接通过结构体字面量创建，
+// 都能获得一致的初始化行为。
+// 注意：该方法只会执行一次，避免重复初始化。
+//
+// 返回值:
+//   - error: 初始化失败时返回错误，否则返回 nil
+func (l *LogRotateX) initDefaults() error {
+	var initErr error
+
+	// 使用 sync.Once 确保初始化只执行一次
+	l.once.Do(func() {
+		// 如果 LogFilePath 为空，设置默认值
+		if l.LogFilePath == "" {
+			l.LogFilePath = getDefaultLogFilePath()
+		}
+
+		// 确保 LogFilePath 是干净的路径
+		l.LogFilePath = filepath.Clean(l.LogFilePath)
+		l.LogFilePath = strings.TrimSpace(l.LogFilePath)
+
+		// 再次验证文件路径（防御性编程）
+		if l.LogFilePath == "" || l.LogFilePath == "." {
+			initErr = fmt.Errorf("log file path cannot be empty")
+			return
+		}
+
+		// 确保目录存在
+		dir := filepath.Dir(l.LogFilePath)
+		if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
+			initErr = fmt.Errorf("failed to create log directory: %w", err)
+			return
+		}
+
+		// 初始化最大文件大小
+		if l.MaxSize <= 0 {
+			l.MaxSize = defaultMaxSize
+		}
+
+		// 初始化最大保留时间
+		if l.MaxAge < 0 {
+			l.MaxAge = 0
+		}
+
+		// 初始化最大备份文件数
+		if l.MaxFiles < 0 {
+			l.MaxFiles = 0
+		}
+
+		// 初始化内部文件权限
+		if l.filePerm == 0 {
+			l.filePerm = defaultFilePerm
+		}
+
+		// 初始化内部文件大小
+		if l.size == 0 {
+			l.size = 0
+		}
+
+		// 显式设置原子布尔的初始值为 false
+		l.closed.Store(false)
+		l.cleanupRunning.Store(false)
+		l.rerunNeeded.Store(false)
+
+		// 初始化压缩类型, 如果为空, 则设置为默认值 zip
+		if l.CompressType.String() == "" {
+			l.CompressType = comprx.CompressTypeZip
+		}
+	})
+
+	return initErr
 }
 
 // logInfo 是一个便捷结构体，用于返回文件名及其嵌入的时间戳。
@@ -119,22 +194,24 @@ func (l *LogRotateX) dir() string {
 }
 
 // prefixAndExt 解析日志文件名，分离前缀和扩展名。
-// 如果没有前缀，使用程序名作为默认前缀。
+// 使用与 genTimeName 一致的解析方式，避免多次字符串操作。
 //
 // 返回值:
 //   - prefix: 文件名前缀
 //   - ext: 文件扩展名( 包含点号)
 func (l *LogRotateX) prefixAndExt() (prefix, ext string) {
-	filename := filepath.Base(l.filename())    // 获取日志文件的基本名称
-	ext = filepath.Ext(filename)               // 提取文件的扩展名
-	prefix = filename[:len(filename)-len(ext)] // 提取文件名部分并添加分隔符
+	filename := filepath.Base(l.filename()) // 获取日志文件的基本名称
 
-	// 如果文件名没有前缀，则使用程序名作为前缀
-	if prefix == "" {
-		prefix = filepath.Base(os.Args[0])
+	// 使用与 genTimeName 一致的解析方式
+	lastDot := strings.LastIndex(filename, ".")
+
+	if lastDot == -1 {
+		// 没有扩展名
+		return filename, ""
 	}
 
-	return prefix, ext
+	// 返回前缀和扩展名
+	return filename[:lastDot], filename[lastDot:]
 }
 
 // close 安全地关闭当前打开的日志文件，防止资源泄漏。
@@ -152,20 +229,9 @@ func (l *LogRotateX) close() error {
 	// 立即将 l.file 置为 nil, 防止在关闭过程中其他goroutine访问已关闭的文件
 	l.file = nil
 
-	// 调用文件的 Close 方法, 尝试关闭文件
-	var closeErr error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				closeErr = fmt.Errorf("panic occurred while closing file: %v", r)
-			}
-		}()
-		closeErr = file.Close()
-	}()
-
-	// 返回关闭文件时可能产生的错误
-	if closeErr != nil {
-		return fmt.Errorf("failed to close log file: %w", closeErr)
+	// 直接关闭文件，文件关闭操作通常不会 panic
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close log file: %w", err)
 	}
 
 	return nil
@@ -290,18 +356,23 @@ func genTimeName(name string, local bool, dateDirLayout bool) string {
 	// 获取文件的基本名称( 包含扩展名)
 	filename := filepath.Base(name)
 
-	// 更安全地处理文件名和扩展名
-	ext := filepath.Ext(filename)
-	prefix := strings.TrimSuffix(filename, ext)
+	// 一次性解析文件名各部分，避免多次字符串操作
+	lastDot := strings.LastIndex(filename, ".")
+	var prefix, ext string
 
-	// 如果文件名以点号结尾但没有扩展名( 例如"logfile.")，确保正确处理
-	if len(ext) > 0 && ext == filename {
-		// 处理纯扩展名文件( 例如".gitignore")
-		prefix = ""
-	} else if len(prefix) == 0 && len(ext) > 0 {
-		// 处理以点号开头的文件( 例如".logfile")
-		prefix = ext
+	switch lastDot {
+	case -1:
+		// 没有扩展名
+		prefix = filename
 		ext = ""
+	case 0:
+		// 以点号开头的文件（如.gitignore）
+		prefix = filename
+		ext = ""
+	default:
+		// 正常情况：有扩展名
+		prefix = filename[:lastDot]
+		ext = filename[lastDot:]
 	}
 
 	// 获取当前时间
@@ -314,14 +385,17 @@ func genTimeName(name string, local bool, dateDirLayout bool) string {
 	// 格式化时间戳
 	timestamp := t.Format(backupTimeFormat)
 
+	// 生成带时间戳的文件名部分
+	timedName := fmt.Sprintf("%s_%s%s", prefix, timestamp, ext)
+
 	// 如果启用日期目录，生成日期目录名
 	if dateDirLayout {
 		dateDir := t.Format("2006-01-02")
-		return filepath.Join(dir, dateDir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
+		return filepath.Join(dir, dateDir, timedName)
 	}
 
 	// 生成新的文件名
-	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
+	return filepath.Join(dir, timedName)
 }
 
 // openExistingOrNew 确保日志文件已打开，根据文件大小决定是否需要轮转。

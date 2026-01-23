@@ -17,8 +17,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -204,79 +202,6 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 		RotateByDay:   true,                   // 启用按天轮转 (默认行为)
 		CompressType:  comprx.CompressTypeZip, // 默认压缩类型为 zip
 	}
-}
-
-// initDefaults 初始化 LogRotateX 实例的默认值。
-// 该方法确保无论是通过构造函数创建还是直接通过结构体字面量创建，
-// 都能获得一致的初始化行为。
-// 注意：该方法只会执行一次，避免重复初始化。
-//
-// 返回值:
-//   - error: 初始化失败时返回错误，否则返回 nil
-func (l *LogRotateX) initDefaults() error {
-	var initErr error
-
-	// 使用 sync.Once 确保初始化只执行一次
-	l.once.Do(func() {
-		// 如果 LogFilePath 为空，设置默认值
-		if l.LogFilePath == "" {
-			l.LogFilePath = getDefaultLogFilePath()
-		}
-
-		// 确保 LogFilePath 是干净的路径
-		l.LogFilePath = filepath.Clean(l.LogFilePath)
-		l.LogFilePath = strings.TrimSpace(l.LogFilePath)
-
-		// 再次验证文件路径（防御性编程）
-		if l.LogFilePath == "" || l.LogFilePath == "." {
-			initErr = fmt.Errorf("log file path cannot be empty")
-			return
-		}
-
-		// 确保目录存在
-		dir := filepath.Dir(l.LogFilePath)
-		if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
-			initErr = fmt.Errorf("failed to create log directory: %w", err)
-			return
-		}
-
-		// 初始化最大文件大小
-		if l.MaxSize <= 0 {
-			l.MaxSize = defaultMaxSize
-		}
-
-		// 初始化最大保留时间
-		if l.MaxAge < 0 {
-			l.MaxAge = 0
-		}
-
-		// 初始化最大备份文件数
-		if l.MaxFiles < 0 {
-			l.MaxFiles = 0
-		}
-
-		// 初始化内部文件权限
-		if l.filePerm == 0 {
-			l.filePerm = defaultFilePerm
-		}
-
-		// 初始化内部文件大小
-		if l.size == 0 {
-			l.size = 0
-		}
-
-		// 显式设置原子布尔的初始值为 false
-		l.closed.Store(false)
-		l.cleanupRunning.Store(false)
-		l.rerunNeeded.Store(false)
-
-		// 初始化压缩类型, 如果为空, 则设置为默认值 zip
-		if l.CompressType.String() == "" {
-			l.CompressType = comprx.CompressTypeZip
-		}
-	})
-
-	return initErr
 }
 
 // Write 实现 io.Writer 接口, 向日志文件写入数据。
