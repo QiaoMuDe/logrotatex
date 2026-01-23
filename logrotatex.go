@@ -150,7 +150,7 @@ type LogRotateX struct {
 	rerunNeeded      atomic.Bool    // 重跑需求标志: false=不需要重跑, true=需要在本轮后再跑一次
 	wg               sync.WaitGroup // wg 是等待组, 用于等待清理协程退出
 	lastRotationDate time.Time      // lastRotationDate 上次轮转的日期 (只记录日期, 不记录时间)
-	initialized      bool           // initialized 标志: true 表示已初始化, 避免重复初始化
+	once             sync.Once      // 确保初始化只执行一次
 }
 
 // Default 返回一个默认的 LogRotateX 实例, 日志文件路径为 "logs/app.log"。
@@ -199,7 +199,7 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 
 	// 验证文件路径
 	if logFilePath == "" {
-		panic("log file path cannot be empty")
+		logFilePath = getDefaultLogFilePath() // 统一逻辑, 为空时设置默认值
 	}
 
 	// 创建 LogRotateX 实例并设置默认值 (显式初始化所有内部字段)
@@ -227,70 +227,69 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 // 返回值:
 //   - error: 初始化失败时返回错误，否则返回 nil
 func (l *LogRotateX) initDefaults() error {
-	// 如果已经初始化过，直接返回
-	if l.initialized {
-		return nil
-	}
+	var initErr error
 
-	// 如果 LogFilePath 为空，设置默认值
-	if l.LogFilePath == "" {
-		l.LogFilePath = getDefaultLogFilePath()
-	}
+	// 使用 sync.Once 确保初始化只执行一次
+	l.once.Do(func() {
+		// 如果 LogFilePath 为空，设置默认值
+		if l.LogFilePath == "" {
+			l.LogFilePath = getDefaultLogFilePath()
+		}
 
-	// 确保 LogFilePath 是干净的路径
-	l.LogFilePath = filepath.Clean(l.LogFilePath)
-	l.LogFilePath = strings.TrimSpace(l.LogFilePath)
+		// 确保 LogFilePath 是干净的路径
+		l.LogFilePath = filepath.Clean(l.LogFilePath)
+		l.LogFilePath = strings.TrimSpace(l.LogFilePath)
 
-	// 验证文件路径
-	if l.LogFilePath == "" {
-		return fmt.Errorf("log file path cannot be empty")
-	}
+		// 验证文件路径
+		if l.LogFilePath == "" {
+			initErr = fmt.Errorf("log file path cannot be empty")
+			return
+		}
 
-	// 确保目录存在
-	dir := filepath.Dir(l.LogFilePath)
-	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
-	}
+		// 确保目录存在
+		dir := filepath.Dir(l.LogFilePath)
+		if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
+			initErr = fmt.Errorf("failed to create log directory: %w", err)
+			return
+		}
 
-	// 初始化最大文件大小
-	if l.MaxSize <= 0 {
-		l.MaxSize = defaultMaxSize
-	}
+		// 初始化最大文件大小
+		if l.MaxSize <= 0 {
+			l.MaxSize = defaultMaxSize
+		}
 
-	// 初始化最大保留时间
-	if l.MaxAge < 0 {
-		l.MaxAge = 0
-	}
+		// 初始化最大保留时间
+		if l.MaxAge < 0 {
+			l.MaxAge = 0
+		}
 
-	// 初始化最大备份文件数
-	if l.MaxFiles < 0 {
-		l.MaxFiles = 0
-	}
+		// 初始化最大备份文件数
+		if l.MaxFiles < 0 {
+			l.MaxFiles = 0
+		}
 
-	// 初始化内部文件权限
-	if l.filePerm == 0 {
-		l.filePerm = defaultFilePerm
-	}
+		// 初始化内部文件权限
+		if l.filePerm == 0 {
+			l.filePerm = defaultFilePerm
+		}
 
-	// 初始化内部文件大小
-	if l.size == 0 {
-		l.size = 0
-	}
+		// 初始化内部文件大小
+		if l.size == 0 {
+			l.size = 0
+		}
 
-	// 显式设置原子布尔的初始值为 false
-	l.closed.Store(false)
-	l.cleanupRunning.Store(false)
-	l.rerunNeeded.Store(false)
+		// 显式设置原子布尔的初始值为 false
+		l.closed.Store(false)
+		l.cleanupRunning.Store(false)
+		l.rerunNeeded.Store(false)
 
-	// 初始化压缩类型, 如果为空, 则设置为默认值 zip
-	if l.CompressType.String() == "" {
-		l.CompressType = comprx.CompressTypeZip
-	}
+		// 初始化压缩类型, 如果为空, 则设置为默认值 zip
+		if l.CompressType.String() == "" {
+			l.CompressType = comprx.CompressTypeZip
+		}
+	})
 
-	// 标记为已初始化
-	l.initialized = true
-
-	return nil
+	return initErr
 }
 
 // Write 实现 io.Writer 接口, 向日志文件写入数据。
@@ -307,10 +306,8 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	defer l.mu.Unlock()
 
 	// 初始化默认值（确保直接通过结构体字面量创建的实例也能正确初始化）
-	if !l.initialized {
-		if err := l.initDefaults(); err != nil {
-			return 0, err
-		}
+	if err := l.initDefaults(); err != nil {
+		return 0, err
 	}
 
 	// 关闭后快速短路, 避免继续 open/rotate/write
@@ -388,10 +385,8 @@ func (l *LogRotateX) Sync() error {
 	defer l.mu.Unlock()
 
 	// 初始化默认值（确保直接通过结构体字面量创建的实例也能正确初始化）
-	if !l.initialized {
-		if err := l.initDefaults(); err != nil {
-			return err
-		}
+	if err := l.initDefaults(); err != nil {
+		return err
 	}
 
 	// 二次检查, 避免与关闭并发竞态

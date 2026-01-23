@@ -64,9 +64,6 @@ func TestLogRotateX_FileRotation(t *testing.T) {
 	dir := makeTempDir("TestLogRotateX_FileRotation", t)
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	var ll *LogRotateX
-	fmt.Printf("ll: %v\n", ll)
-
 	// 创建小文件大小的logger，便于测试轮转
 	logger := NewLogRotateX(logFile(dir))
 	logger.MaxSize = 1 // 1MB
