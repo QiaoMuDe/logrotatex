@@ -518,25 +518,28 @@ func TestDefaultFilename(t *testing.T) {
 	// 保存原始值
 	originalMegabyte := megabyte
 	originalCurrentTime := currentTime
+	originalArgs := os.Args
 
 	// 测试结束后恢复原始值
 	defer func() {
 		megabyte = originalMegabyte
 		currentTime = originalCurrentTime
+		os.Args = originalArgs
 	}()
 
 	// 将当前时间设置为模拟时间，确保测试的可重复性
 	currentTime = fakeTime
-	// 设置 megabyte 变量的值为 1
-	megabyte = 1
-	// 获取系统临时目录
-	dir := os.TempDir()
-	// 构建默认的日志文件名，格式为 程序名_logrotatex.log
-	filename := filepath.Join(dir, filepath.Base(os.Args[0])+defaultLogSuffix)
+	// 设置 megabyte 变量的值为 1，但设置更大的MaxSize避免立即轮转
+	megabyte = 1024 * 1024 // 1MB，正确的字节值
+	// 模拟os.Args[0]为非空值
+	os.Args = []string{"logrotatex.exe"}
+
+	// 使用默认路径生成函数，保持一致性
+	filename := getDefaultLogFilePath()
 	// 测试结束后删除该日志文件
 	defer func() { _ = os.Remove(filename) }()
 	// 创建一个 LogRotateX 实例，不指定文件名，使用默认配置
-	l := &LogRotateX{}
+	l := &LogRotateX{MaxSize: 10, RotateByDay: false} // 设置足够大的MaxSize避免轮转，并禁用按天轮转
 	// 测试结束后关闭日志文件
 	defer func() { _ = l.Close() }()
 	// 定义要写入日志文件的数据

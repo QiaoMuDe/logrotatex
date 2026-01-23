@@ -39,7 +39,12 @@ const (
 // 返回值:
 //   - string: 默认的日志文件完整路径
 func getDefaultLogFilePath() string {
-	return filepath.Join(os.TempDir(), filepath.Base(os.Args[0])+defaultLogSuffix)
+	// 获取程序名，如果为空则使用默认值
+	progName := filepath.Base(os.Args[0])
+	if progName == "" || progName == "." || progName == "/" {
+		progName = "logrotatex"
+	}
+	return filepath.Join(os.TempDir(), progName+defaultLogSuffix)
 }
 
 // logInfo 是一个便捷结构体，用于返回文件名及其嵌入的时间戳。
@@ -395,11 +400,12 @@ func (l *LogRotateX) shouldRotateByDay() bool {
 		return false
 	}
 
-	// 检查是否跨天（只比较日期部分）
-	currentDate := now.Format("2006-01-02")
-	lastDate := l.lastRotationDate.Format("2006-01-02")
+	// 检查是否跨天（直接比较时间分量）
+	nowYear, nowMonth, nowDay := now.Date()
+	lastYear, lastMonth, lastDay := l.lastRotationDate.Date()
 
-	if currentDate != lastDate {
+	// 如果年、月、日有任何不匹配，说明跨天了
+	if nowYear != lastYear || nowMonth != lastMonth || nowDay != lastDay {
 		// 跨天了，更新上次轮转日期
 		l.lastRotationDate = now
 		return true

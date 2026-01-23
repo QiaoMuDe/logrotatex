@@ -191,19 +191,8 @@ var NewLRX = NewLogRotateX
 //   - RotateByDay: true (默认按天轮转)
 //   - CompressType: comprx.CompressTypeZip (默认压缩类型为 zip)
 func NewLogRotateX(logFilePath string) *LogRotateX {
-	// 清理文件路径
-	logFilePath = filepath.Clean(logFilePath)
-
-	// 去除左右空格
-	logFilePath = strings.TrimSpace(logFilePath)
-
-	// 验证文件路径
-	if logFilePath == "" {
-		logFilePath = getDefaultLogFilePath() // 统一逻辑, 为空时设置默认值
-	}
-
 	// 创建 LogRotateX 实例并设置默认值 (显式初始化所有内部字段)
-	logger := &LogRotateX{
+	return &LogRotateX{
 		LogFilePath:   logFilePath,            // 日志文件路径
 		Async:         false,                  // 是否异步清理 (默认同步)
 		MaxSize:       10,                     // 10MB (默认值)
@@ -215,8 +204,6 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 		RotateByDay:   true,                   // 启用按天轮转 (默认行为)
 		CompressType:  comprx.CompressTypeZip, // 默认压缩类型为 zip
 	}
-
-	return logger
 }
 
 // initDefaults 初始化 LogRotateX 实例的默认值。
@@ -240,8 +227,8 @@ func (l *LogRotateX) initDefaults() error {
 		l.LogFilePath = filepath.Clean(l.LogFilePath)
 		l.LogFilePath = strings.TrimSpace(l.LogFilePath)
 
-		// 验证文件路径
-		if l.LogFilePath == "" {
+		// 再次验证文件路径（防御性编程）
+		if l.LogFilePath == "" || l.LogFilePath == "." {
 			initErr = fmt.Errorf("log file path cannot be empty")
 			return
 		}
