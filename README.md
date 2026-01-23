@@ -48,7 +48,7 @@ LogRotateX 是一个专为 Go 语言设计的高性能日志轮转库，基于 [
 <td colspan="2">
 
 ### 🚀 缓冲写入器 (BufferedWriter)
-- 📦 **批量写入** - 三重触发条件智能刷新（缓冲区大小、写入次数、刷新间隔）
+- 📦 **批量写入** - 双重触发条件智能刷新（缓冲区大小、刷新间隔）
 - ⚡ **性能提升** - 减少系统调用开销，提升写入性能
 - 🔧 **通用设计** - 支持 io.WriteCloser，且提供 WrapWriter 适配 io.Writer；提供 NewStdoutBW 便捷函数
 - ⏱️ **定时刷新器** - 内置定时器协程，确保数据及时写入，防止缓冲区长时间未刷新
@@ -375,7 +375,6 @@ func main() {
     // 自定义缓冲配置
     config := &logrotatex.BufCfg{
         MaxBufferSize: 128 * 1024,                      // 128KB 缓冲区
-        MaxWriteCount:   1000,                          // 1000条写入次数
         FlushInterval: 500 * time.Millisecond,          // 500ms 刷新间隔（最小间隔）
     }
     
@@ -433,7 +432,6 @@ func main() {
 
 **BufferedWriter 默认配置**：
 - **缓冲区大小**：256KB - 平衡内存使用和刷新频率
-- **最大写入次数**：1000次 - 避免过度频繁的刷新操作
 - **刷新间隔**：1秒 - 内置定时刷新器，确保数据及时写入，最小间隔500ms
 
 </details>
@@ -464,9 +462,8 @@ func main() {
         
         // 每10000条检查状态
         if (i+1)%10000 == 0 {
-            fmt.Printf("已写入 %d 条，缓冲区大小: %d 字节，日志计数: %d
-", 
-                i+1, buffered.BufferSize(), buffered.WriteCount())
+            fmt.Printf("已写入 %d 条，缓冲区大小: %d 字节\n", 
+                i+1, buffered.BufferSize())
         }
     }
     
@@ -541,7 +538,6 @@ func main() {
     // 终端输出缓冲：减少频繁写入 stdout
     cfg := &logrotatex.BufCfg{
         MaxBufferSize: 32 * 1024,               // 32KB 缓冲区
-        MaxWriteCount: 200,                     // 每200次触发一次刷新
         FlushInterval: 500 * time.Millisecond,  // 500ms 刷新间隔（最小间隔）
     }
 

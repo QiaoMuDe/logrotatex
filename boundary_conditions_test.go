@@ -386,7 +386,7 @@ func TestErrorPaths(t *testing.T) {
 		if err == nil {
 			t.Fatalf("文件被删除后写入应失败")
 		}
-		if !strings.Contains(err.Error(), "logrotatex: write on closed") {
+		if !strings.Contains(err.Error(), "write on closed") {
 			t.Fatalf("关闭后写入返回的错误不符合预期: %v", err)
 		}
 

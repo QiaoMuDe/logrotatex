@@ -58,7 +58,6 @@ func TestBufferedWriter_BufferSizeFlush(t *testing.T) {
 	// 创建自定义配置，小缓冲区便于测试
 	config := &BufCfg{
 		MaxBufferSize: 64, // 64字节缓冲区
-		MaxWriteCount: 1000,
 		FlushInterval: 10 * time.Second,
 	}
 
@@ -90,51 +89,11 @@ func TestBufferedWriter_BufferSizeFlush(t *testing.T) {
 	}
 }
 
-// TestBufferedWriter_WriteCountFlush 测试写入次数触发刷新
-func TestBufferedWriter_WriteCountFlush(t *testing.T) {
-	// 创建自定义配置，小写入次数便于测试
-	config := &BufCfg{
-		MaxBufferSize: 1024, // 1KB缓冲区
-		MaxWriteCount: 3,    // 3次写入触发刷新
-		FlushInterval: 10 * time.Second,
-	}
-
-	mock := &mockWriter{}
-	bw := NewBufferedWriter(mock, config)
-	defer func() {
-		if err := bw.Close(); err != nil {
-			t.Errorf("Close failed: %v", err)
-		}
-	}()
-
-	// 写入3次小数据，每次不超过缓冲区大小
-	for i := 0; i < 3; i++ {
-		testData := []byte(fmt.Sprintf("Write %d\n", i))
-		n, err := bw.Write(testData)
-		if err != nil {
-			t.Fatalf("Write %d failed: %v", i, err)
-		}
-		if n != len(testData) {
-			t.Errorf("Write %d length mismatch. Got: %d, Want: %d", i, n, len(testData))
-		}
-	}
-
-	// 等待一小段时间确保刷新完成
-	time.Sleep(10 * time.Millisecond)
-
-	// 验证数据已写入底层写入器
-	expected := "Write 0\nWrite 1\nWrite 2\n"
-	if mock.String() != expected {
-		t.Errorf("Data mismatch. Got: %s, Want: %s", mock.String(), expected)
-	}
-}
-
 // TestBufferedWriter_TimeFlush 测试时间间隔触发刷新
 func TestBufferedWriter_TimeFlush(t *testing.T) {
 	// 创建自定义配置，短时间间隔便于测试
 	config := &BufCfg{
-		MaxBufferSize: 1024, // 1KB缓冲区
-		MaxWriteCount: 1000,
+		MaxBufferSize: 1024,                  // 1KB缓冲区
 		FlushInterval: 50 * time.Millisecond, // 50ms刷新间隔，减少等待时间
 	}
 
@@ -146,7 +105,7 @@ func TestBufferedWriter_TimeFlush(t *testing.T) {
 		}
 	}()
 
-	// 写入小数据，不足以触发缓冲区大小或写入次数刷新
+	// 写入小数据，不足以触发缓冲区大小
 	testData := []byte("Time flush test\n")
 	n, err := bw.Write(testData)
 	if err != nil {
@@ -330,9 +289,6 @@ func TestBufferedWriter_DefaultConfig(t *testing.T) {
 	if bw.BufferSize() != 0 {
 		t.Errorf("Initial buffer size should be 0, got %d", bw.BufferSize())
 	}
-	if bw.WriteCount() != 0 {
-		t.Errorf("Initial write count should be 0, got %d", bw.WriteCount())
-	}
 	if bw.IsClosed() {
 		t.Errorf("Initial state should not be closed")
 	}
@@ -342,7 +298,6 @@ func TestBufferedWriter_DefaultConfig(t *testing.T) {
 func TestBufferedWriter_CustomConfig(t *testing.T) {
 	config := &BufCfg{
 		MaxBufferSize: 32 * 1024, // 32KB
-		MaxWriteCount: 100,
 		FlushInterval: 500 * time.Millisecond,
 	}
 
@@ -368,9 +323,6 @@ func TestBufferedWriter_CustomConfig(t *testing.T) {
 	if bw.BufferSize() != len(testData) {
 		t.Errorf("Buffer size mismatch. Got: %d, Want: %d", bw.BufferSize(), len(testData))
 	}
-	if bw.WriteCount() != 1 {
-		t.Errorf("Write count mismatch. Got: %d, Want: %d", bw.WriteCount(), 1)
-	}
 }
 
 // TestBufferedWriter_StatusMethods 测试状态查询方法
@@ -387,9 +339,6 @@ func TestBufferedWriter_StatusMethods(t *testing.T) {
 	if bw.BufferSize() != 0 {
 		t.Errorf("Initial buffer size should be 0, got %d", bw.BufferSize())
 	}
-	if bw.WriteCount() != 0 {
-		t.Errorf("Initial write count should be 0, got %d", bw.WriteCount())
-	}
 	if bw.IsClosed() {
 		t.Errorf("Initial state should not be closed")
 	}
@@ -404,10 +353,6 @@ func TestBufferedWriter_StatusMethods(t *testing.T) {
 	if bw.BufferSize() != len(testData) {
 		t.Errorf("Buffer size after write should be %d, got %d", len(testData), bw.BufferSize())
 	}
-	if bw.WriteCount() != 1 {
-		t.Errorf("Write count after write should be 1, got %d", bw.WriteCount())
-	}
-
 	// 刷新后状态
 	err = bw.Flush()
 	if err != nil {
@@ -416,9 +361,6 @@ func TestBufferedWriter_StatusMethods(t *testing.T) {
 
 	if bw.BufferSize() != 0 {
 		t.Errorf("Buffer size after flush should be 0, got %d", bw.BufferSize())
-	}
-	if bw.WriteCount() != 0 {
-		t.Errorf("Write count after flush should be 0, got %d", bw.WriteCount())
 	}
 
 	// 关闭后状态
@@ -445,9 +387,6 @@ func TestBufferedWriter_DefaultBufferedWriter(t *testing.T) {
 	// 验证默认配置
 	if bw.BufferSize() != 0 {
 		t.Errorf("Initial buffer size should be 0, got %d", bw.BufferSize())
-	}
-	if bw.WriteCount() != 0 {
-		t.Errorf("Initial write count should be 0, got %d", bw.WriteCount())
 	}
 
 	// 写入数据
@@ -485,9 +424,6 @@ func TestBufferedWriter_DefaultBuffered(t *testing.T) {
 	if bw.BufferSize() != 0 {
 		t.Errorf("Initial buffer size should be 0, got %d", bw.BufferSize())
 	}
-	if bw.WriteCount() != 0 {
-		t.Errorf("Initial write count should be 0, got %d", bw.WriteCount())
-	}
 
 	// 写入数据
 	testData := []byte("Default buffered test\n")
@@ -515,7 +451,6 @@ func TestBufferedWriter_DefaultBuffered(t *testing.T) {
 func TestBufferedWriter_NewStdoutBW(t *testing.T) {
 	config := &BufCfg{
 		MaxBufferSize: 1024,
-		MaxWriteCount: 10,
 		FlushInterval: 100 * time.Millisecond,
 	}
 

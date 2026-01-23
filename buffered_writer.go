@@ -25,8 +25,6 @@ var (
 const (
 	// DefaultMaxBufferSize 默认最大缓冲区大小 (256KB)
 	DefaultMaxBufferSize = 256 * 1024
-	// DefaultMaxWriteCount 默认最大写入次数 (1000次)
-	DefaultMaxWriteCount = 1000
 	// DefaultFlushInterval 默认刷新间隔 (1秒)
 	DefaultFlushInterval = 1 * time.Second
 	// MinFlushInterval 最小刷新间隔 (500ms), 防止过于频繁的刷新
@@ -43,34 +41,30 @@ type BufferedWriter struct {
 	flushTicker *time.Ticker   // 刷新定时器 (根据 flushInterval 触发)
 	closeChan   chan struct{}  // 关闭信号通道, 用于通知定时器协程退出
 	tickerWg    sync.WaitGroup // 用于跟踪定时器协程生命周期
+	once        sync.Once      // 确保初始化只执行一次
 
-	// 三重刷新条件
+	// 双重刷新条件
 	maxBufferSize int           // 最大缓冲区大小 (字节), 默认256KB
-	maxWriteCount int           // 最大写入次数, 默认1000次
 	flushInterval time.Duration // 刷新间隔, 默认1秒 (最小500ms)
 
 	// 状态跟踪
-	writeCount  int         // 当前写入次数
-	lastFlush   time.Time   // 上次刷新时间
-	closed      atomic.Bool // 是否已关闭
-	initialized bool        // 是否已初始化
+	lastFlush time.Time   // 上次刷新时间
+	closed    atomic.Bool // 是否已关闭
 }
 
 // BufCfg 缓冲写入器配置
 type BufCfg struct {
 	MaxBufferSize int           // 最大缓冲区大小, 默认256KB
-	MaxWriteCount int           // 最大写入次数, 默认1000次
 	FlushInterval time.Duration // 刷新间隔, 默认1秒(最小500ms)
 }
 
 // DefBufCfg 默认缓冲写入器配置
 //
 // 注意:
-//   - 默认缓冲区大小为256KB, 最大写入次数为1000次, 刷新间隔为1秒
+//   - 默认缓冲区大小为256KB, 刷新间隔为1秒
 func DefBufCfg() *BufCfg {
 	return &BufCfg{
 		MaxBufferSize: DefaultMaxBufferSize, // 默认256KB缓冲区
-		MaxWriteCount: DefaultMaxWriteCount, // 默认1000次写入
 		FlushInterval: DefaultFlushInterval, // 默认1秒刷新间隔
 	}
 }
@@ -116,7 +110,6 @@ var NewBW = NewBufferedWriter
 //
 // 默认配置:
 //   - 缓冲区大小: 256KB
-//   - 最大写入次数: 1000次
 //   - 刷新间隔: 1秒
 func DefaultBufferedWriter(wc io.WriteCloser) *BufferedWriter {
 	return NewBufferedWriter(wc, DefBufCfg())
@@ -130,7 +123,6 @@ func DefaultBufferedWriter(wc io.WriteCloser) *BufferedWriter {
 //
 // 默认配置:
 //   - 缓冲区大小: 256KB
-//   - 最大写入次数: 1000次
 //   - 刷新间隔: 1秒
 //   - 日志文件路径: logs/app.log
 //   - 按天轮转: 启用
@@ -143,82 +135,72 @@ func DefaultBuffered() *BufferedWriter {
 }
 
 // initDefaults 初始化 BufferedWriter 实例的默认值。
-// 该方法确保无论是通过构造函数创建还是直接通过结构体字面量创建，
-// 都能获得一致的初始化行为。
-// 注意：该方法只会执行一次，避免重复初始化。
+// 该方法使用 sync.Once 确保只执行一次，提高效率。
 //
 // 返回值:
 //   - error: 初始化失败时返回错误，否则返回 nil
 func (bw *BufferedWriter) initDefaults() error {
-	// 如果已经初始化过，直接返回
-	if bw.initialized {
-		return nil
-	}
+	var initErr error
 
-	// 校验参数: WriteCloser 不能为空
-	if bw.wc == nil {
-		return errors.New("logrotatex: WriteCloser cannot be nil")
-	}
+	// 使用 sync.Once 确保初始化只执行一次
+	bw.once.Do(func() {
+		// 校验参数: WriteCloser 不能为空
+		if bw.wc == nil {
+			initErr = errors.New("WriteCloser cannot be nil")
+			return
+		}
 
-	// 参数校验, 负值,零值统一设置为默认值
-	if bw.maxBufferSize <= 0 {
-		bw.maxBufferSize = DefaultMaxBufferSize // 默认256KB缓冲区
-	}
-	if bw.maxWriteCount <= 0 {
-		bw.maxWriteCount = DefaultMaxWriteCount // 默认1000次写入
-	}
-	// 设置刷新间隔, 最小500ms, 默认1秒
-	if bw.flushInterval > 0 && bw.flushInterval < MinFlushInterval {
-		bw.flushInterval = MinFlushInterval // 最小500ms, 防止过于频繁的刷新
-	} else if bw.flushInterval <= 0 {
-		bw.flushInterval = DefaultFlushInterval // 默认1秒刷新间隔
-	}
+		// 参数校验, 负值,零值统一设置为默认值
+		if bw.maxBufferSize <= 0 {
+			bw.maxBufferSize = DefaultMaxBufferSize // 默认256KB缓冲区
+		}
+		// 设置刷新间隔, 最小500ms, 默认1秒
+		if bw.flushInterval > 0 && bw.flushInterval < MinFlushInterval {
+			bw.flushInterval = MinFlushInterval // 最小500ms, 防止过于频繁的刷新
+		} else if bw.flushInterval <= 0 {
+			bw.flushInterval = DefaultFlushInterval // 默认1秒刷新间隔
+		}
 
-	// 初始化内部字段
-	bw.buffer = bytes.NewBuffer(make([]byte, 0, bw.maxBufferSize)) // 缓冲区
-	// 使用零值锁请勿手动初始化
-	// bw.mutex = sync.RWMutex{}
-	bw.writeCount = 0                  // 写入次数
-	bw.lastFlush = time.Now()          // 上次刷新时间
-	bw.closed.Store(false)             // 默认设置为未关闭
-	bw.closeChan = make(chan struct{}) // 初始化关闭信号通道
+		// 初始化内部字段
+		bw.buffer = bytes.NewBuffer(make([]byte, 0, bw.maxBufferSize)) // 缓冲区
+		bw.lastFlush = time.Now()                                      // 上次刷新时间
+		bw.closed.Store(false)                                         // 默认设置为未关闭
+		bw.closeChan = make(chan struct{})                             // 初始化关闭信号通道
 
-	// 启动刷新定时器
-	if bw.flushTicker == nil {
-		bw.flushTicker = time.NewTicker(bw.flushInterval)
+		// 启动刷新定时器
+		if bw.flushTicker == nil {
+			bw.flushTicker = time.NewTicker(bw.flushInterval)
 
-		// 启动定时器协程
-		bw.tickerWg.Go(func() {
-			// 防止定时器协程panic导致程序崩溃
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Printf("logrotatex: BufferedWriter flush ticker panic: %v stack: %s\n", r, debug.Stack())
-				}
-			}()
+			// 启动定时器协程
+			bw.tickerWg.Go(func() {
+				// 防止定时器协程panic导致程序崩溃
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("BufferedWriter flush ticker panic: %v stack: %s\n", r, debug.Stack())
+					}
+				}()
 
-			for {
-				select {
-				case <-bw.flushTicker.C:
-					// 检查是否已关闭
-					if bw.closed.Load() {
+				for {
+					select {
+					case <-bw.flushTicker.C:
+						// 检查是否已关闭
+						if bw.closed.Load() {
+							return
+						}
+						// 刷新失败时打印错误日志
+						if err := bw.Flush(); err != nil {
+							fmt.Printf("ticker flush failed: %v\n", err)
+						}
+					case <-bw.closeChan:
+						// 收到关闭信号，立即退出
 						return
 					}
-					// 刷新失败时打印错误日志
-					if err := bw.Flush(); err != nil {
-						fmt.Printf("logrotatex: ticker flush failed: %v\n", err)
-					}
-				case <-bw.closeChan:
-					// 收到关闭信号，立即退出
-					return
 				}
-			}
-		})
-	}
+			})
+		}
+	})
 
-	// 标记为已初始化
-	bw.initialized = true
-
-	return nil
+	return initErr
 }
 
 // NewBufferedWriter 创建新的带缓冲批量写入器
@@ -232,7 +214,7 @@ func (bw *BufferedWriter) initDefaults() error {
 func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
 	// 校验参数: WriteCloser 不能为空
 	if wc == nil {
-		panic("logrotatex: WriteCloser cannot be nil")
+		panic("WriteCloser cannot be nil")
 	}
 
 	if config == nil {
@@ -242,7 +224,6 @@ func NewBufferedWriter(wc io.WriteCloser, config *BufCfg) *BufferedWriter {
 	bw := &BufferedWriter{
 		wc:            wc,                   // 底层写入+关闭器 (必需)
 		maxBufferSize: config.MaxBufferSize, // 最大缓冲区大小 (字节)
-		maxWriteCount: config.MaxWriteCount, // 最大写入次数
 		flushInterval: config.FlushInterval, // 刷新间隔
 	}
 
@@ -267,15 +248,13 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
 
-	// 初始化默认值
-	if !bw.initialized {
-		if err := bw.initDefaults(); err != nil {
-			return 0, err
-		}
+	// 确保初始化完成
+	if err := bw.initDefaults(); err != nil {
+		return 0, err
 	}
 
 	if bw.closed.Load() {
-		return 0, errors.New("logrotatex: write on closed")
+		return 0, errors.New("write on closed")
 	}
 
 	// 1. 写入缓冲区
@@ -284,16 +263,13 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 
-	// 2. 增加写入计数
-	bw.writeCount++
-
-	// 3. 检查是否需要刷新 (三重条件触发)
+	// 2. 检查是否需要刷新 (双重条件触发)
 	if bw.shouldFlush() {
 		flushErr := bw.flushLocked()
 		if flushErr != nil {
 			// 数据已写入缓冲区，但刷新失败
 			// 返回实际写入的字节数，让调用者知道数据已接收
-			return n, fmt.Errorf("logrotatex: write succeeded but flush failed: %w", flushErr)
+			return n, fmt.Errorf("write succeeded but flush failed: %w", flushErr)
 		}
 	}
 
@@ -306,17 +282,12 @@ func (bw *BufferedWriter) Write(p []byte) (n int, err error) {
 //   - bool: 是否应该刷新缓冲区
 //
 // 注意:
-//   - 三重条件: 缓冲区大小 OR 写入次数 OR 刷新间隔
+//   - 双重条件: 缓冲区大小 OR 刷新间隔
 //   - 如果满足任意一个条件, 则刷新缓冲区
 //   - 所有触发条件始终生效
 func (bw *BufferedWriter) shouldFlush() bool {
-	// 检查是否满足缓冲区更新条件
+	// 检查是否满足缓冲区大小条件
 	if bw.buffer.Len() >= bw.maxBufferSize {
-		return true
-	}
-
-	// 检查是否满足写入次数更新条件
-	if bw.writeCount >= bw.maxWriteCount {
 		return true
 	}
 
@@ -337,11 +308,10 @@ func (bw *BufferedWriter) flushLocked() error {
 	// 使用 bytes.Buffer.WriteTo 来处理部分写入与循环写入
 	if _, err := bw.buffer.WriteTo(bw.wc); err != nil {
 		// 出错时, WriteTo 已消耗掉已写出的前缀, 剩余数据仍保留在缓冲区
-		return fmt.Errorf("logrotatex: flush failed: %w", err)
+		return fmt.Errorf("flush failed: %w", err)
 	}
 
 	// 写入成功后, 缓冲区已被消费为空, 无需Reset, WriteTo会自动清空缓冲区
-	bw.writeCount = 0         // 重置写入次数
 	bw.lastFlush = time.Now() // 更新刷新时间
 	return nil
 }
@@ -356,14 +326,12 @@ func (bw *BufferedWriter) Flush() error {
 
 	// 外部触发刷新: 若已关闭则直接返回, 防止重复刷新
 	if bw.closed.Load() {
-		return errors.New("logrotatex: flush on closed")
+		return errors.New("flush on closed")
 	}
 
-	// 初始化默认值
-	if !bw.initialized {
-		if err := bw.initDefaults(); err != nil {
-			return err
-		}
+	// 确保初始化完成
+	if err := bw.initDefaults(); err != nil {
+		return err
 	}
 
 	return bw.flushLocked()
@@ -374,11 +342,9 @@ func (bw *BufferedWriter) Close() error {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
 
-	// 初始化默认值
-	if !bw.initialized {
-		if err := bw.initDefaults(); err != nil {
-			return err
-		}
+	// 确保初始化完成
+	if err := bw.initDefaults(); err != nil {
+		return err
 	}
 
 	// 原子设置关闭, 仅执行一次
@@ -417,29 +383,12 @@ func (bw *BufferedWriter) BufferSize() int {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
 
-	// 初始化默认值
-	if !bw.initialized {
-		if err := bw.initDefaults(); err != nil {
-			return 0
-		}
+	// 确保初始化完成
+	if err := bw.initDefaults(); err != nil {
+		return 0
 	}
 
 	return bw.buffer.Len()
-}
-
-// WriteCount 返回当前缓冲区中的写入次数
-func (bw *BufferedWriter) WriteCount() int {
-	bw.mutex.Lock()
-	defer bw.mutex.Unlock()
-
-	// 初始化默认值
-	if !bw.initialized {
-		if err := bw.initDefaults(); err != nil {
-			return 0
-		}
-	}
-
-	return bw.writeCount
 }
 
 // IsClosed 返回缓冲写入器是否已关闭
@@ -447,11 +396,9 @@ func (bw *BufferedWriter) IsClosed() bool {
 	bw.mutex.Lock()
 	defer bw.mutex.Unlock()
 
-	// 初始化默认值
-	if !bw.initialized {
-		if err := bw.initDefaults(); err != nil {
-			return false
-		}
+	// 确保初始化完成
+	if err := bw.initDefaults(); err != nil {
+		return false
 	}
 
 	return bw.closed.Load()

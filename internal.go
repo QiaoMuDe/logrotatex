@@ -152,7 +152,7 @@ func (l *LogRotateX) close() error {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				closeErr = fmt.Errorf("logrotatex: panic occurred while closing file: %v", r)
+				closeErr = fmt.Errorf("panic occurred while closing file: %v", r)
 			}
 		}()
 		closeErr = file.Close()
@@ -160,7 +160,7 @@ func (l *LogRotateX) close() error {
 
 	// 返回关闭文件时可能产生的错误
 	if closeErr != nil {
-		return fmt.Errorf("logrotatex: failed to close log file: %w", closeErr)
+		return fmt.Errorf("failed to close log file: %w", closeErr)
 	}
 
 	return nil
@@ -178,7 +178,7 @@ func (l *LogRotateX) rotate() error {
 
 	// 调用 openNew 方法打开一个新的日志文件。
 	if err := l.openNew(); err != nil {
-		return fmt.Errorf("logrotatex: failed to open new file during rotation: %w", err)
+		return fmt.Errorf("failed to open new file during rotation: %w", err)
 	}
 
 	// 清理操作：按开关选择同步或异步
@@ -188,7 +188,7 @@ func (l *LogRotateX) rotate() error {
 	} else {
 		// 同步：保持兼容
 		if err := l.cleanupSync(); err != nil {
-			fmt.Printf("logrotatex: cleanup failed during rotation: %v\n", err)
+			fmt.Printf("cleanup failed during rotation: %v\n", err)
 		}
 	}
 
@@ -203,7 +203,7 @@ func (l *LogRotateX) openNew() error {
 	// 确保日志文件所在目录存在，使用更安全的目录权限
 	// 如果目录不存在则创建，如果已存在则不执行任何操作
 	if err := os.MkdirAll(l.dir(), defaultDirPerm); err != nil {
-		return fmt.Errorf("logrotatex: unable to create required directory for log file: %w", err)
+		return fmt.Errorf("unable to create required directory for log file: %w", err)
 	}
 
 	// 获取日志文件的完整路径
@@ -229,18 +229,18 @@ func (l *LogRotateX) openNew() error {
 		if l.DateDirLayout {
 			dateDir := filepath.Dir(newname)
 			if err := os.MkdirAll(dateDir, defaultDirPerm); err != nil {
-				return fmt.Errorf("logrotatex: unable to create date directory: %w", err)
+				return fmt.Errorf("unable to create date directory: %w", err)
 			}
 		}
 
 		// 重命名文件到新路径
 		if renameErr := os.Rename(name, newname); renameErr != nil {
-			return fmt.Errorf("logrotatex: unable to rename log file: %w", renameErr)
+			return fmt.Errorf("unable to rename log file: %w", renameErr)
 		}
 
 		// // 在非 Linux 系统上, 此操作无效
 		// if chownErr := chown(name, info); chownErr != nil {
-		// 	return fmt.Errorf("logrotatex: unable to set file owner: %w", chownErr)
+		// 	return fmt.Errorf("unable to set file owner: %w", chownErr)
 		// }
 	}
 
@@ -248,7 +248,7 @@ func (l *LogRotateX) openNew() error {
 	// 如果文件已存在( 可能是其他进程创建的), 则清空内容。
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
-		return fmt.Errorf("logrotatex: unable to open new log file: %w", err)
+		return fmt.Errorf("unable to open new log file: %w", err)
 	}
 
 	// 先保存旧文件引用
@@ -262,7 +262,7 @@ func (l *LogRotateX) openNew() error {
 	if oldFile != nil {
 		if closeErr := oldFile.Close(); closeErr != nil {
 			// 记录错误但不返回失败，因为新文件已经可用
-			fmt.Printf("logrotatex: warning - failed to close old file: %v\n", closeErr)
+			fmt.Printf("warning - failed to close old file: %v\n", closeErr)
 		}
 	}
 
@@ -341,7 +341,7 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	}
 	if err != nil {
 		// 如果获取文件信息失败, 返回错误
-		return fmt.Errorf("logrotatex: error getting log file info: %w", err)
+		return fmt.Errorf("error getting log file info: %w", err)
 	}
 
 	// 检查写入操作是否会达到或超出最大文件大小限制
@@ -371,7 +371,7 @@ func (l *LogRotateX) openExistingOrNew(writeLen int) error {
 	if oldFile != nil {
 		if closeErr := oldFile.Close(); closeErr != nil {
 			// 记录错误但不返回失败，因为新文件已经可用
-			fmt.Printf("logrotatex: warning - failed to close old file: %v\n", closeErr)
+			fmt.Printf("warning - failed to close old file: %v\n", closeErr)
 		}
 	}
 

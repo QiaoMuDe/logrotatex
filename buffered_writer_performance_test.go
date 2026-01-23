@@ -90,7 +90,6 @@ func BenchmarkBufferedWriter_DirectWrite(b *testing.B) {
 func BenchmarkBufferedWriter_SmallBuffer(b *testing.B) {
 	config := &BufCfg{
 		MaxBufferSize: 1 * 1024, // 1KB
-		MaxWriteCount: 100,
 		FlushInterval: 1 * time.Second,
 	}
 
@@ -119,7 +118,6 @@ func BenchmarkBufferedWriter_SmallBuffer(b *testing.B) {
 func BenchmarkBufferedWriter_LargeBuffer(b *testing.B) {
 	config := &BufCfg{
 		MaxBufferSize: 256 * 1024, // 256KB
-		MaxWriteCount: 1000,
 		FlushInterval: 5 * time.Second,
 	}
 
@@ -148,7 +146,6 @@ func BenchmarkBufferedWriter_LargeBuffer(b *testing.B) {
 func BenchmarkBufferedWriter_FrequentFlush(b *testing.B) {
 	config := &BufCfg{
 		MaxBufferSize: 64 * 1024, // 64KB
-		MaxWriteCount: 10,        // 10次写入触发刷新
 		FlushInterval: 1 * time.Second,
 	}
 
@@ -177,7 +174,6 @@ func BenchmarkBufferedWriter_FrequentFlush(b *testing.B) {
 func BenchmarkBufferedWriter_InfrequentFlush(b *testing.B) {
 	config := &BufCfg{
 		MaxBufferSize: 64 * 1024, // 64KB
-		MaxWriteCount: 1000,      // 1000次写入触发刷新
 		FlushInterval: 10 * time.Second,
 	}
 
@@ -206,7 +202,6 @@ func BenchmarkBufferedWriter_InfrequentFlush(b *testing.B) {
 func BenchmarkBufferedWriter_TimeBasedFlush(b *testing.B) {
 	config := &BufCfg{
 		MaxBufferSize: 1024 * 1024,            // 1MB，避免大小触发
-		MaxWriteCount: 10000,                  // 大次数，避免次数触发
 		FlushInterval: 100 * time.Millisecond, // 100ms刷新间隔
 	}
 
@@ -280,7 +275,6 @@ func TestBufferedWriter_PerformanceComparison(t *testing.T) {
 	func() {
 		config := &BufCfg{
 			MaxBufferSize: 4 * 1024, // 4KB
-			MaxWriteCount: 50,
 			FlushInterval: 1 * time.Second,
 		}
 		mock := &mockWriter{}
@@ -307,7 +301,6 @@ func TestBufferedWriter_PerformanceComparison(t *testing.T) {
 	func() {
 		config := &BufCfg{
 			MaxBufferSize: 1024 * 1024, // 1MB
-			MaxWriteCount: 1000,
 			FlushInterval: 10 * time.Second,
 		}
 		mock := &mockWriter{}
@@ -380,7 +373,6 @@ func TestBufferedWriter_MemoryUsage(t *testing.T) {
 	// 创建缓冲写入器
 	config := &BufCfg{
 		MaxBufferSize: 64 * 1024, // 64KB
-		MaxWriteCount: 500,
 		FlushInterval: 1 * time.Second,
 	}
 	mock := &mockWriter{}
@@ -422,7 +414,6 @@ func TestBufferedWriter_FlushTriggerEfficiency(t *testing.T) {
 	func() {
 		config := &BufCfg{
 			MaxBufferSize: len(testData) * 10, // 10次写入触发
-			MaxWriteCount: 1000,
 			FlushInterval: 10 * time.Second,
 		}
 		mock := &mockWriter{}
@@ -445,38 +436,10 @@ func TestBufferedWriter_FlushTriggerEfficiency(t *testing.T) {
 			numWrites, duration, float64(numWrites)/duration.Seconds(), mock.WriteCalls())
 	}()
 
-	// 测试场景2: 写入次数触发
-	func() {
-		config := &BufCfg{
-			MaxBufferSize: 1024 * 1024, // 1MB，避免大小触发
-			MaxWriteCount: 10,          // 10次写入触发
-			FlushInterval: 10 * time.Second,
-		}
-		mock := &mockWriter{}
-		bw := NewBufferedWriter(mock, config)
-		defer func() {
-			if err := bw.Close(); err != nil {
-				t.Errorf("Close failed: %v", err)
-			}
-		}()
-
-		start := time.Now()
-		for i := 0; i < numWrites; i++ {
-			_, err := bw.Write(testData)
-			if err != nil {
-				t.Fatalf("Write failed: %v", err)
-			}
-		}
-		duration := time.Since(start)
-		t.Logf("Write count trigger: %d writes in %v (%.2f writes/sec, %d calls)",
-			numWrites, duration, float64(numWrites)/duration.Seconds(), mock.WriteCalls())
-	}()
-
 	// 测试场景3: 时间间隔触发
 	func() {
 		config := &BufCfg{
 			MaxBufferSize: 1024 * 1024,           // 1MB，避免大小触发
-			MaxWriteCount: 10000,                 // 大次数，避免次数触发
 			FlushInterval: 50 * time.Millisecond, // 50ms刷新间隔
 		}
 		mock := &mockWriter{}
@@ -539,7 +502,6 @@ func TestBufferedWriter_RealWorldScenario(t *testing.T) {
 	func() {
 		config := &BufCfg{
 			MaxBufferSize: 64 * 1024, // 64KB
-			MaxWriteCount: 100,
 			FlushInterval: 1 * time.Second,
 		}
 		mock := &mockWriter{}

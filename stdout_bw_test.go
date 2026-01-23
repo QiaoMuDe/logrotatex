@@ -19,8 +19,8 @@ func TestNewStdoutBW(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = orig }()
 
-	// 禁用三重条件自动刷新，便于精确控制
-	cfg := &BufCfg{MaxBufferSize: 0, MaxWriteCount: 0, FlushInterval: 0}
+	// 禁用双重条件自动刷新，便于精确控制
+	cfg := &BufCfg{MaxBufferSize: 0, FlushInterval: 0}
 	bw := NewStdoutBW(cfg)
 
 	data1 := []byte("hello\n")
@@ -67,7 +67,7 @@ func TestStdoutBW_FlushOnMaxBufferSize(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = orig }()
 
-	cfg := &BufCfg{MaxBufferSize: 10, MaxWriteCount: 0, FlushInterval: 0}
+	cfg := &BufCfg{MaxBufferSize: 10, FlushInterval: 0}
 	bw := NewStdoutBW(cfg)
 
 	// 先写不足阈值的数据，不应触发写出
@@ -108,64 +108,6 @@ func TestStdoutBW_FlushOnMaxBufferSize(t *testing.T) {
 	_, _ = io.ReadAll(r)
 }
 
-// 写入次数触发：达到 MaxWriteCount 次写入时自动写出
-func TestStdoutBW_FlushOnMaxWriteCount(t *testing.T) {
-	orig := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe error: %v", err)
-	}
-	os.Stdout = w
-	defer func() { os.Stdout = orig }()
-
-	cfg := &BufCfg{MaxBufferSize: 0, MaxWriteCount: 3, FlushInterval: 0}
-	bw := NewStdoutBW(cfg)
-
-	data1 := []byte("a")
-	data2 := []byte("b")
-	data3 := []byte("c")
-	want := []byte("abc")
-
-	// 前两次写入不触发
-	if _, err := bw.Write(data1); err != nil {
-		t.Fatalf("Write 1 error: %v", err)
-	}
-	if bw.WriteCount() != 1 {
-		t.Fatalf("write count mismatch: want 1 got %d", bw.WriteCount())
-	}
-	if _, err := bw.Write(data2); err != nil {
-		t.Fatalf("Write 2 error: %v", err)
-	}
-	if bw.WriteCount() != 2 {
-		t.Fatalf("write count mismatch: want 2 got %d", bw.WriteCount())
-	}
-
-	// 第三次写入应触发写出
-	done := make(chan []byte, 1)
-	go func() {
-		buf := make([]byte, len(want))
-		_, _ = io.ReadFull(r, buf)
-		done <- buf
-	}()
-
-	if _, err := bw.Write(data3); err != nil {
-		t.Fatalf("Write 3 error: %v", err)
-	}
-
-	select {
-	case got := <-done:
-		if !bytes.Equal(got, want) {
-			t.Fatalf("flush content mismatch: want %q got %q", string(want), string(got))
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatalf("timeout waiting for flush on MaxWriteCount")
-	}
-
-	// 清理
-	_ = w.Close()
-	_, _ = io.ReadAll(r)
-}
-
 // 刷新间隔触发：超过 FlushInterval 后的下一次写入触发写出
 func TestStdoutBW_FlushOnInterval(t *testing.T) {
 	orig := os.Stdout
@@ -176,7 +118,7 @@ func TestStdoutBW_FlushOnInterval(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = orig }()
 
-	cfg := &BufCfg{MaxBufferSize: 0, MaxWriteCount: 0, FlushInterval: 50 * time.Millisecond}
+	cfg := &BufCfg{MaxBufferSize: 0, FlushInterval: 50 * time.Millisecond}
 	bw := NewStdoutBW(cfg)
 
 	first := []byte("interval")
@@ -213,7 +155,7 @@ func TestStdoutBW_FlushOnInterval(t *testing.T) {
 	_, _ = io.ReadAll(r)
 }
 
-// 验证：写入次数触发刷新后，计数与缓冲区被重置，避免频繁终端输出
+// 验证：计数与缓冲区被重置，避免频繁终端输出
 func TestStdoutBW_WriteCountResetAfterFlush(t *testing.T) {
 	orig := os.Stdout
 	r, w, err := os.Pipe()
@@ -223,8 +165,8 @@ func TestStdoutBW_WriteCountResetAfterFlush(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = orig }()
 
-	// 仅启用写入次数触发
-	cfg := &BufCfg{MaxBufferSize: 0, MaxWriteCount: 2, FlushInterval: 0}
+	// 仅启用缓冲区大小触发
+	cfg := &BufCfg{MaxBufferSize: 2, FlushInterval: 0}
 	bw := NewStdoutBW(cfg)
 
 	// 第1、2次写入应在第二次后触发自动刷新
@@ -252,10 +194,7 @@ func TestStdoutBW_WriteCountResetAfterFlush(t *testing.T) {
 		t.Fatalf("flush content mismatch: want %q got %q", string(wantBatch), string(gotBatch))
 	}
 
-	// 刷新后计数与缓冲区应被重置
-	if bw.WriteCount() != 0 {
-		t.Fatalf("write count should reset to 0, got %d", bw.WriteCount())
-	}
+	// 刷新后缓冲区应被重置
 	if bw.BufferSize() != 0 {
 		t.Fatalf("buffer size should reset to 0, got %d", bw.BufferSize())
 	}
@@ -336,7 +275,6 @@ func TestWrapWriter_WithBufferedWriter(t *testing.T) {
 	// 使用 WrapWriter 包装底层 writer，确保不可关闭
 	bw := NewBufferedWriter(WrapWriter(w), &BufCfg{
 		MaxBufferSize: 0,
-		MaxWriteCount: 2, // 两次写入触发刷新
 		FlushInterval: 0,
 	})
 

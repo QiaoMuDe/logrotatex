@@ -199,7 +199,7 @@ func NewLogRotateX(logFilePath string) *LogRotateX {
 
 	// 验证文件路径
 	if logFilePath == "" {
-		panic("logrotatex: log file path cannot be empty")
+		panic("log file path cannot be empty")
 	}
 
 	// 创建 LogRotateX 实例并设置默认值 (显式初始化所有内部字段)
@@ -243,13 +243,13 @@ func (l *LogRotateX) initDefaults() error {
 
 	// 验证文件路径
 	if l.LogFilePath == "" {
-		return fmt.Errorf("logrotatex: log file path cannot be empty")
+		return fmt.Errorf("log file path cannot be empty")
 	}
 
 	// 确保目录存在
 	dir := filepath.Dir(l.LogFilePath)
 	if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
-		return fmt.Errorf("logrotatex: failed to create log directory: %w", err)
+		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
 	// 初始化最大文件大小
@@ -315,7 +315,7 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 
 	// 关闭后快速短路, 避免继续 open/rotate/write
 	if l.closed.Load() {
-		return 0, errors.New("logrotatex: write on closed")
+		return 0, errors.New("write on closed")
 	}
 
 	// 计算要写入的数据长度
@@ -331,26 +331,26 @@ func (l *LogRotateX) Write(p []byte) (n int, err error) {
 	// 检查当前写入是否会导致文件大小达到或超过限制, 如果是则触发轮转
 	if l.size+writeLen >= l.max() {
 		if rotateErr := l.rotate(); rotateErr != nil {
-			return 0, fmt.Errorf("logrotatex: failed to rotate file: %w", rotateErr)
+			return 0, fmt.Errorf("failed to rotate file: %w", rotateErr)
 		}
 	}
 
 	// 检查是否跨天, 触发按天轮转 (仅在启用时)
 	if l.RotateByDay && l.shouldRotateByDay() {
 		if rotateErr := l.rotate(); rotateErr != nil {
-			return 0, fmt.Errorf("logrotatex: failed to rotate file: %w", rotateErr)
+			return 0, fmt.Errorf("failed to rotate file: %w", rotateErr)
 		}
 	}
 
 	// 再次检查文件是否已打开
 	if l.file == nil {
-		return 0, errors.New("logrotatex: file handle is nil after attempting to open or rotate")
+		return 0, errors.New("file handle is nil after attempting to open or rotate")
 	}
 
 	// 安全地将所有数据写入文件
 	n, err = l.file.Write(p)
 	if err != nil {
-		return n, fmt.Errorf("logrotatex: failed to write to file: %w", err)
+		return n, fmt.Errorf("failed to write to file: %w", err)
 	}
 	l.size += int64(n) // 更新当前文件大小
 
@@ -396,7 +396,7 @@ func (l *LogRotateX) Sync() error {
 
 	// 二次检查, 避免与关闭并发竞态
 	if l.closed.Load() {
-		return errors.New("logrotatex: sync on closed")
+		return errors.New("sync on closed")
 	}
 
 	// 检查文件是否已打开, 如果已打开则执行同步操作

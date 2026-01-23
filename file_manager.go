@@ -42,7 +42,7 @@ func (l *LogRotateX) cleanupSync() error {
 	// 获取所有旧的日志文件信息 (按时间戳降序排列)
 	files, err := l.oldLogFiles()
 	if err != nil {
-		return fmt.Errorf("logrotatex: failed to get old log files: %w", err)
+		return fmt.Errorf("failed to get old log files: %w", err)
 	}
 
 	// 定义需要压缩和移除的日志文件列表
@@ -90,7 +90,7 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 
 			// 移除文件
 			if err := os.Remove(filePath); err != nil {
-				errors = append(errors, fmt.Errorf("logrotatex: failed to remove log file %s: %w", filePath, err))
+				errors = append(errors, fmt.Errorf("failed to remove log file %s: %w", filePath, err))
 			}
 		}
 	}
@@ -116,13 +116,13 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 
 			// 压缩文件
 			if err := comprx.PackOptions(compressPath, filePath, opts); err != nil {
-				errors = append(errors, fmt.Errorf("logrotatex: failed to compress log file %s: %w", filePath, err))
+				errors = append(errors, fmt.Errorf("failed to compress log file %s: %w", filePath, err))
 				continue // 压缩失败就跳过，保留原文件
 			}
 
 			// 删除原文件
 			if err := os.Remove(filePath); err != nil {
-				errors = append(errors, fmt.Errorf("logrotatex: failed to delete original file %s: %w", filePath, err))
+				errors = append(errors, fmt.Errorf("failed to delete original file %s: %w", filePath, err))
 			}
 		}
 	}
@@ -133,7 +133,7 @@ func (l *LogRotateX) executeCleanup(remove, compress []logInfo) error {
 	// 如果有错误，返回聚合错误
 	if len(errors) > 0 {
 		var errMsg strings.Builder
-		errMsg.WriteString("logrotatex: multiple errors occurred during cleanup execution:\n")
+		errMsg.WriteString("multiple errors occurred during cleanup execution:\n")
 		for i, err := range errors {
 			errMsg.WriteString(fmt.Sprintf("  %d. %v\n", i+1, err))
 		}
@@ -227,7 +227,7 @@ func (l *LogRotateX) runCleanupLoop() {
 	defer func() {
 		// panic 保护，防止 wg 和 running 状态失配
 		if r := recover(); r != nil {
-			fmt.Printf("logrotatex: panic in async cleanup: %v\n", r)
+			fmt.Printf("panic in async cleanup: %v\n", r)
 		}
 
 		l.cleanupRunning.Store(false) // 退出时重置运行状态
@@ -242,7 +242,7 @@ func (l *LogRotateX) runCleanupLoop() {
 		// 1) 最新文件状态
 		files, err := l.oldLogFiles()
 		if err != nil {
-			fmt.Printf("logrotatex: failed to get old log files: %v\n", err)
+			fmt.Printf("failed to get old log files: %v\n", err)
 
 			// 如果没有新的触发需求，直接退出循环，避免空转
 			if !l.rerunNeeded.Load() {
@@ -275,7 +275,7 @@ func (l *LogRotateX) runCleanupLoop() {
 
 		// 4) 执行清理
 		if err := l.executeCleanup(remove, compress); err != nil {
-			fmt.Printf("logrotatex: async cleanup error: %v\n", err)
+			fmt.Printf("async cleanup error: %v\n", err)
 		}
 
 		// 5) 是否重跑 (合并触发: 多次触发只续跑一轮)
@@ -343,7 +343,7 @@ func (l *LogRotateX) oldLogFiles() ([]logInfo, error) {
 	// 读取日志文件所在目录中的所有文件
 	files, err := os.ReadDir(l.dir())
 	if err != nil {
-		return nil, fmt.Errorf("logrotatex: unable to read log file directory: %w", err)
+		return nil, fmt.Errorf("unable to read log file directory: %w", err)
 	}
 
 	// 如果目录为空，直接返回
@@ -583,13 +583,13 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 
 	// 增强的边界检查
 	if startPos < 0 || endPos > len(filename) || startPos >= endPos {
-		return time.Time{}, fmt.Errorf("logrotatex: invalid filename format: %s", filename)
+		return time.Time{}, fmt.Errorf("invalid filename format: %s", filename)
 	}
 
 	// 检查时间戳长度
 	timestampLen := endPos - startPos
 	if timestampLen != expectedTimestampLen {
-		return time.Time{}, fmt.Errorf("logrotatex: invalid timestamp length %d, expected %d in file: %s",
+		return time.Time{}, fmt.Errorf("invalid timestamp length %d, expected %d in file: %s",
 			timestampLen, expectedTimestampLen, filename)
 	}
 
@@ -598,13 +598,13 @@ func (l *LogRotateX) fastTimeFromName(filename, prefix, ext string) (time.Time, 
 
 	// 快速验证: 确保都是数字
 	if !isAllDigits(timestampStr) {
-		return time.Time{}, fmt.Errorf("logrotatex: timestamp contains non-digit characters: %s", timestampStr)
+		return time.Time{}, fmt.Errorf("timestamp contains non-digit characters: %s", timestampStr)
 	}
 
 	// 解析时间戳
 	t, err := time.Parse(backupTimeFormat, timestampStr)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("logrotatex: failed to parse timestamp %s: %w", timestampStr, err)
+		return time.Time{}, fmt.Errorf("failed to parse timestamp %s: %w", timestampStr, err)
 	}
 
 	return t, nil

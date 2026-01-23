@@ -27,7 +27,7 @@ package logrotatex
 // 	// 安全地获取系统状态信息
 // 	stat, ok := info.Sys().(*syscall.Stat_t)
 // 	if !ok {
-// 		return fmt.Errorf("logrotatex: unable to get file system status information")
+// 		return fmt.Errorf("unable to get file system status information")
 // 	}
 
 // 	// 获取源文件的用户 ID 和组 ID
@@ -36,7 +36,7 @@ package logrotatex
 
 // 	// 直接更改目标文件的所有者和所属组
 // 	if err := os.Chown(name, uid, gid); err != nil {
-// 		return fmt.Errorf("logrotatex: unable to set file owner: %w", err)
+// 		return fmt.Errorf("unable to set file owner: %w", err)
 // 	}
 
 // 	return nil
